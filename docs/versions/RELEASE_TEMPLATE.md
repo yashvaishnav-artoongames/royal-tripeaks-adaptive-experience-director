@@ -1,23 +1,13 @@
-# Version Release Notes
+# Release <version> — <date>
 
-## Version
-<!-- Example: 1.5.0 -->
-
-## What's New
-- 
+## What's new
 
 ## Changed
-- 
 
 ## Fixed
-- 
 
-## Known Issues
-- 
+## Known issues
 
 ## Verification
-- [ ] Existing demo loads
-- [ ] Existing major features work
-- [ ] New feature verified
-- [ ] Version updated
-- [ ] CHANGELOG updated
+
+    <paste actual harness output — never write a number you did not run>

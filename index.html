@@ -2097,7 +2097,7 @@ function verifiedAbsorb(delta){
   for(const v of bandOrder()){
     if(v===rt.tv)continue;
     const d3=proveFrom(v,120);
-    if(d3){dk=d3;LV.deck=d3.slice();LV.tv=v;LV.band=bd;replans++;
+    if(d3){dk=d3;LV.deck=d3.slice();LV.tv=v;LV.band=bandOf();replans++;
       preserveWilds(wilds);
       return {status:'reband',tv:v,moved:v-rt.tv+rt.moved};}
   }

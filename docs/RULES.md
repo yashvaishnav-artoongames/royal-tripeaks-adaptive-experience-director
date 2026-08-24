@@ -1,18 +1,50 @@
-# AED Rules
+# Rules
 
-## Evidence
-- VERIFIED: directly supported.
-- LIVE: observed in execution.
-- INFERRED: derived but not explicit.
-- PROPOSED: awaiting approval.
+Explicit rules that are VERIFIED in code or APPROVED by decision. Each has an ID
+and a status.
 
-## Core
-- Preserve existing functionality unless explicitly changed.
-- Do not invent undocumented gameplay behavior.
-- Major AED decisions must be explainable.
-- Important adaptive events should have telemetry.
+**RULE-001 — Plus Card is a map obstacle.** VERIFIED.
+Declared per level by `PlusCards`, occupies a board slot, never playable.
 
-## Plus Card
-- Plus Card is a specific map obstacle.
-- Do not treat every plus-card visual/card as a Plus Card obstacle.
-- Exact trigger, placement, ordering, and deck mutation must be verified.
+**RULE-002 — A Plus Card is not a normal card with a plus visual.** VERIFIED.
+`legals()` strips `isPlusCard(i)` before any rank test.
+
+**RULE-003 — Plus Card firing is a pure function of the cleared set.** VERIFIED.
+It fires when every entry in `DEP[i]` is cleared. No timing, no randomness.
+
+**RULE-004 — A Plus Card clears itself for free.** VERIFIED.
+No match is spent on it. It is not a card the player has to match, so a level's
+matchable count is `N - PLUSTILES`.
+
+**RULE-005 — Granted cards land on the top of the deck.** VERIFIED.
+Spliced at `di`, so they are drawn next, in reverse order of emission.
+
+**RULE-006 — Only unseen state may be mutated.** VERIFIED.
+Every rung of the recovery ladder touches only the undrawn deck and unrevealed
+tableau. Cards already drawn or played never change.
+
+**RULE-007 — The band is the promise; `tv` is a point inside it.** APPROVED, D-004.
+`retarget()` may move `tv` only within `[lo, hi]`. A deck that grows does not
+license moving the outcome outside its band.
+
+**RULE-008 — Intent is a constraint, not a weight.** VERIFIED.
+A rescue with non-win intent is gated on `ecLineFull()` and cannot receive a rank
+the player could win with. Measured at 0.0% across all configurations.
+
+**RULE-009 — A committed Wild is never silently replaced.** VERIFIED.
+Every ladder rung calls `preserveWilds()`. Position may move; existence may not.
+
+**RULE-010 — Undo rewinds the board, never a purchase.** VERIFIED.
+The snapshot taken at a rescue grant carries `paid`; `back()` will not cross it.
+
+**RULE-011 — A win is counted after any plus sweep.** VERIFIED.
+A plus tile clears itself outside the match path, so a win check that ran only on
+a match would miss a board emptied by a tile. Fixes the gap identified in the
+obstacle documentation.
+
+**RULE-012 — Granted cards do not count against core rank supply.** VERIFIED.
+They are extra supply the game handed out, tagged `dk[i][3]`.
+
+**RULE-013 — Adaptive decisions must be explainable.** APPROVED.
+Document as trigger, inputs, decision, action, state, player experience,
+telemetry, downstream plan, fallback.

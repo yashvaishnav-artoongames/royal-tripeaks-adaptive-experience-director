@@ -12,8 +12,6 @@ the committed `index.html` against its harnesses for the first time.
 - Project memory written from repository evidence, every claim classified.
 - `tools/` added — 24 harnesses, each reading `../index.html`.
 - `levels/` added — the 15 imported level JSON files.
-- `docs/specs/`, `docs/reference/TUNING.md`, `docs/measurements/` added.
-- `docs/CLAUDE_CODE_ONBOARDING.md` — the prompt for a fresh Claude Code session.
 - **ISSUE-001 fixed**: `verifiedAbsorb()` threw `ReferenceError` on every REBAND.
 
 ## Verified this session (LIVE)
@@ -33,12 +31,6 @@ the committed `index.html` against its harnesses for the first time.
 3. **Q-003** — the softer pacing constraint is a contained experiment.
 4. No full bot sweep has been run since Plus Cards landed. `tools/fulltest.js`
    over 25 levels is roughly 15 minutes of generation, chunkable.
-
-## Missing from the repository
-
-Referenced but not present — see `docs/specs/README.md`. Ask for them rather than
-reconstructing: the Plus Card obstacle deep-dive, the ECED architecture review,
-the empty-rescue correction, and the Claude Project Operating Guide.
 
 ## Uncertain
 
