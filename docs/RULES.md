@@ -16,8 +16,17 @@ It fires when every entry in `DEP[i]` is cleared. No timing, no randomness.
 No match is spent on it. It is not a card the player has to match, so a level's
 matchable count is `N - PLUSTILES`.
 
-**RULE-005 — Granted cards land on the top of the deck.** VERIFIED.
+**RULE-005 — Granted cards land on the top of the deck.** VERIFIED FOR PLUS
+CARDS ONLY · CONFLICT OPEN, see Q-007.
 Spliced at `di`, so they are drawn next, in reverse order of emission.
+
+> Conflict found 2026-08-24, second session. This holds for `plusFire()`
+> (`index.html:1973`). It does **not** hold for `addExtraCards()`, which splices
+> at a uniform random position in the unseen region (`index.html:2150`), nor for
+> `insertWild()` (`index.html:2180`). `docs/GLOSSARY.md` defines a granted card
+> as one added by a reward *or* an obstacle, so as written the rule covers all
+> three paths and is true of one. Not resolved here — the rule may be the
+> intended behaviour and the code the defect. See `docs/OPEN_QUESTIONS.md` Q-007.
 
 **RULE-006 — Only unseen state may be mutated.** VERIFIED.
 Every rung of the recovery ladder touches only the undrawn deck and unrevealed
@@ -44,6 +53,12 @@ obstacle documentation.
 
 **RULE-012 — Granted cards do not count against core rank supply.** VERIFIED.
 They are extra supply the game handed out, tagged `dk[i][3]`.
+
+> Note added 2026-08-24, second session. True of the verified path. On a **live**
+> level `addExtraCards()` raises `LV.deckLen` without raising `LV.pool`
+> (`index.html:2143-2145`), so the extra draws are taken from core supply rather
+> than added to it — the opposite of this rule. `plusFire()` does top the pool up
+> (`index.html:1977`). See ISSUE-006.
 
 **RULE-013 — Adaptive decisions must be explainable.** APPROVED.
 Document as trigger, inputs, decision, action, state, player experience,

@@ -57,6 +57,17 @@ in the commit and in `CHANGELOG.md`.
 **ISSUE-001 is the cautionary case:** a `ReferenceError` reached `main` because
 suites were skipped for speed. Speed is not a reason.
 
+## main is production
+
+GitHub Pages serves `main` from the repository root. There is no staging and no
+build step — **every push to `main` is a live deploy.**
+
+Work on a branch. Merge to `main` only after the verification gate in
+`docs/WORKFLOW.md` passes, and only with approval. Bump `APP_VERSION` and add a
+`CHANGELOG.md` entry in the same change.
+
+Live: https://yashvaishnav-artoongames.github.io/royal-tripeaks-adaptive-experience-director/
+
 ## Files
 
 One demo file: `index.html`. Do not create `index-new.html`, `demo-v2.html` or

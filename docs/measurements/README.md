@@ -5,8 +5,12 @@ any figure from `archive/`.**
 
 ## Current
 
-None. No sweep has been run since the Plus Card obstacle landed. Regenerate with
-`node tools/fulltest.js 5 0 25` then `node tools/mkreport.js`.
+| file | status | covers |
+|---|---|---|
+| `reg_1.0.1.md` | **CURRENT** | `tools/reg.js` re-measured three times on 1.0.1, all 30 failures classified, ExtraCards vs Coins control, ladder rung census. Supersedes the `96 / 25` figure |
+
+No full bot sweep has been run since the Plus Card obstacle landed. Regenerate
+with `node tools/fulltest.js 5 0 25` then `node tools/mkreport.js`.
 
 ## archive/
 
@@ -26,3 +30,5 @@ otherwise archived. Re-measure before relying on them:
 - verified 302 runs at 100% outcome held / 100% exact; live 303 runs at 91% / 30%
 - all 27 outcome failures were lose targets that won, all on the live side
 - `reg.js`: 96 pass / 25 fail over 121 level/outcome pairs
+  — **did not reproduce.** Re-measured 2026-08-24: 91/30, 92/29, 92/29 over three
+  runs on the same build. See `reg_1.0.1.md`.
