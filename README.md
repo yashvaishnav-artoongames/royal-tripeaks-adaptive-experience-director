@@ -1,2 +1,7 @@
-# royal-tripeaks-adaptive-experience-director
-Royal TriPeaks Adaptive Experience Director (AED) — an adaptive gameplay and experience direction system for designing, testing, and evolving dynamic TriPeaks level experiences, with versioned demos, gameplay logic, telemetry, and persistent AI-assisted project documentation.
+# TriPeaks AED Claude Project
+
+This package establishes the operating model for Claude across multiple chats.
+
+Read `CLAUDE.md` first, then the relevant files under `docs/`.
+
+The full guide is `CLAUDE_PROJECT_OPERATING_GUIDE.md`.

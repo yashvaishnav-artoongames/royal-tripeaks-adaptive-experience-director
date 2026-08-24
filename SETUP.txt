@@ -1,0 +1,24 @@
+ROYAL TRIPEAKS AED — INITIAL PROJECT BASELINE
+
+1. Extract/copy all files from this package into:
+   D:\Workspace\Live\royal-tripeaks-adaptive-experience-director
+
+2. Keep the existing .git folder. Do NOT copy any .git folder from this package.
+
+3. The package contains the current Plus Card demo as index.html and the Claude/AED project memory structure.
+
+4. After copying, run:
+   git status
+
+5. Then create the baseline commit:
+   git add .
+   git commit -m "Initialize Royal TriPeaks AED project"
+
+6. Do not start new feature development until this baseline is committed.
+
+IMPORTANT:
+- index.html is the current demo.
+- CLAUDE.md contains Claude's project rules.
+- docs/ contains durable AI/project memory.
+- CHANGELOG.md contains release history.
+- Do not create duplicate demo HTML files for normal changes.
