@@ -59,3 +59,27 @@ Status: OPEN
 
 Streak rewards and ECED both emit structured records. A Plus Card firing produces
 only a `SUPPLY_LOG` row.
+
+---
+
+**Q-007 — Which outcome bands are authoritative, the demo's or the shipping game's?**
+Status: OPEN · Raised by `docs/WHY_THE_DIRECTOR.md`
+
+The objective paper (section 3) lists Close Lose as 1–3 cards stranded and Comfortable
+Lose as 4–6. `OUT` in `index.html` has 3–5 and 5–8; `docs/reference/TUNING.md` records
+that the lose bands were widened from the paper's values to give the rescue director
+room. So the paper predates the widening, and two problems follow.
+
+The demo's lose bands now **overlap at 5**, so a run stranding 5 cards satisfies both
+Close Lose and Comfortable Lose, and a harness scoring "in band" cannot tell them apart.
+
+More seriously, the paper quotes the shipping game's own constants —
+`WIN_TARGET_DECK_MIN/MAX = 0..3` and `LOSE_TARGET_MAP_MIN/MAX = 1..6`. If those still
+hold, the demo's **Comfortable Win band of 4–6 draws unused has no counterpart in the
+shipping range at all**, and a level authored to it could not be reproduced there.
+UNKNOWN whether those constants are current — nobody has checked the Unity source this
+session.
+
+Next: read `Hard_LevelManipulator` for the live constants, then decide one way. If the
+shipping ranges are authoritative the demo's bands move and every measured figure that
+mentions a band is superseded; if the demo's are, the paper needs a correction note.

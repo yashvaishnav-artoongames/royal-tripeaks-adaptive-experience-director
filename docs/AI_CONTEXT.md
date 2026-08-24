@@ -9,6 +9,13 @@ solitaire. It generates levels that land on an *authored outcome* and proves the
 do so before the player sees them. VERIFIED — no build step, no dependencies;
 open `index.html`.
 
+**Why it exists is in `docs/WHY_THE_DIRECTOR.md`** — read it before proposing a
+change to the directors. A level ships as a shape and gets its card values from a
+shuffle, so the experience is a lottery; the Director makes outcome a design input
+instead of an observation. The metric that paper names, *verified levels that
+missed their target: zero*, is the one to protect. Its outcome bands predate the
+lose-band widening — see Q-007.
+
 ## The game loop
 
 Tableau cards sit in a dependency graph. A card is playable when every card

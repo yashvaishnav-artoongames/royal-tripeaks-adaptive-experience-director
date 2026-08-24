@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.0.3 — 2026-08-24
+
+### Added
+- `docs/WHY_THE_DIRECTOR.md` — the objective. Why the Director exists: a level ships as a
+  shape and gets its card values from a shuffle, so the experience is a lottery; the
+  Director makes outcome a design input. Committed verbatim as received.
+- **Q-007** — which outcome bands are authoritative. The paper lists Close Lose 1–3 and
+  Comfortable Lose 4–6; `OUT` has 3–5 and 5–8. The demo's lose bands overlap at 5, and the
+  shipping constants the paper quotes (`WIN_TARGET_DECK_MIN/MAX = 0..3`) leave the demo's
+  Comfortable Win band with no counterpart. Recorded, not resolved.
+
+### Changed
+- `docs/AI_CONTEXT.md` points at the objective and names the metric to protect: verified
+  levels that missed their target, zero.
+- `APP_VERSION` 1.0.2 → 1.0.3.
+
+### Verification
+**Not run, by instruction** — docs only, plus a one-character version bump. The 1.0.2
+deploy was confirmed rendering at the live URL, which establishes that the patched script
+parses; the version readout itself is injected at runtime and was not observable through a
+non-JS fetch.
+
+---
+
+
 ## 1.0.2 — 2026-08-24
 
 ### Added
