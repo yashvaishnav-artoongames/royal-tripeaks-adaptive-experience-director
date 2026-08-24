@@ -47,15 +47,35 @@ UNDERSTAND → CLASSIFY → PLAN → IMPLEMENT → VERIFY → DOCUMENT → VERSI
 Run the relevant harness and report the actual output. **Never claim something
 was tested if it was not.**
 
-    node tools/reg.js          core director
-    node tools/plustest.js     Plus Card obstacle
-    node tools/streaktest.js   streak rewards
+    node tools/plustest.js     Plus Card obstacle       13/13
+    node tools/streaktest.js   streak rewards           26/26
+    node tools/colortest.js    streak colour            11/11
+    node tools/meter.js        meter states              9/9
+    node tools/truth.js        multiplier reporting     18/18
 
-`tools/README.md` lists the rest. A change that moves a suite number must say so
-in the commit and in `CHANGELOG.md`.
+All five together take a couple of seconds, so there is no excuse for skipping
+them. A change that moves a suite number must say so in the commit and in
+`CHANGELOG.md`.
+
+The long harnesses were removed in 1.0.2 — `reg.js`, the sweeps and the probes.
+Nothing automated now measures band adherence or the verified/live split, so
+**a change to the directors, the bands or the deck has to be argued in the
+browser and said out loud in the commit.** `tools/README.md` records what left
+and how to bring one back from git history for a single run.
 
 **ISSUE-001 is the cautionary case:** a `ReferenceError` reached `main` because
 suites were skipped for speed. Speed is not a reason.
+
+## main is production
+
+GitHub Pages serves `main` from the repository root. There is no staging and no
+build step — **every push to `main` is a live deploy.**
+
+Work on a branch. Merge to `main` only after the verification gate in
+`docs/WORKFLOW.md` passes, and only with approval. Bump `APP_VERSION` and add a
+`CHANGELOG.md` entry in the same change.
+
+Live: https://yashvaishnav-artoongames.github.io/royal-tripeaks-adaptive-experience-director/
 
 ## Files
 
