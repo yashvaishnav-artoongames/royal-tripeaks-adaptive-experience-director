@@ -1,5 +1,10 @@
 # Known Issues
 
+> **Branch `feat/issue-015-absorb-wasted-draw` carries UNVERIFIED fixes for ISSUE-002,
+> ISSUE-005, ISSUE-011, ISSUE-012, ISSUE-013 and ISSUE-015.** No harness has been run
+> against them. The statuses below still read OPEN and stay that way until a measured run
+> says otherwise - a fix nobody has measured is a claim, not a status.
+
 Confirmed problems only. No speculation. Each was reproduced on the current
 `index.html` on 2026-08-24.
 
