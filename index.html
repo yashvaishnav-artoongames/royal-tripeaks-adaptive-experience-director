@@ -460,8 +460,13 @@ td.v{font-weight:500;}
    these levels read as random rather than tricky: the rank changes by a silent sprite swap
    and nothing draws the eye to the moment your target moved. Box-shadow only - .pc carries
    an inline rotate, and animating transform here would throw a rotated card straight. */
-@keyframes udpop{0%{box-shadow:0 0 0 0 rgba(217,119,6,.6)}
-  100%{box-shadow:0 0 0 8px rgba(217,119,6,0)}}
+/* The ring takes the CARD's colour, like the rank, the pip and the arrow do - amber was a
+   fourth colour on a card that already has exactly one. Carried as raw RGB components in a
+   custom property so the same keyframe can fade either of them out to zero alpha. */
+@keyframes udpop{0%{box-shadow:0 0 0 0 rgba(var(--udring),.55)}
+  100%{box-shadow:0 0 0 8px rgba(var(--udring),0)}}
+.pc.udc{--udring:26,29,35;}
+.pc.udc.red{--udring:220,38,38;}
 .pc.udc.udf{animation:udpop .52s ease-out;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
   width:100%;height:100%;line-height:1;}
