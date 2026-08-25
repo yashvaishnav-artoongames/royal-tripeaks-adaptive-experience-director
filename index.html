@@ -1437,6 +1437,8 @@ function exh(rank,deck,seed,win,tv,needPay){
   if(!win&&fk<1)return null;
   return {minDen:r.d,minPay:r.p,states:states,forks:fk};
 }
+// Why the last allHit calls failed. Reset per build; read by the proof panel and harnesses.
+let HITFAIL={miss:0,cap:0,unsound:0};
 function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
   const memo=new Map();let cap=0,unsound=false;
   const DJR=deck.length+2, WR=WASTE_RADIX;
@@ -1465,7 +1467,14 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
       else if(dj<deck.length)ok=f(mlo,mhi,deck[dj][1],dj+1);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
-  return f(m0lo,m0hi,w0,d0);
+  // ISSUE-012. false meant three different things and the caller could not tell them apart:
+  // a line genuinely misses, the 90,000-state budget ran out, or a memo-key field overflowed
+  // its radix. `unsound` was set and never read. Still one return value - every rung has to
+  // try something else either way - but the reason is now counted, so "this level cannot be
+  // proved" stops being indistinguishable from "the search gave up".
+  const ok=f(m0lo,m0hi,w0,d0);
+  if(!ok){if(unsound)HITFAIL.unsound++;else if(cap>90000)HITFAIL.cap++;else HITFAIL.miss++;}
+  return ok;
 }
 let LV=null,cl,wl,wr,di,k,log,beat,act,note,stack,wild,wx,py,dk,miss,rep,health,RUNLEFT=0,replans=0;
 const TG={lines:true,count:true,fade:true,reveal:false};
@@ -1916,7 +1925,15 @@ function miss1(){if(!legals().length){draw();return;}
   log.push({t:'m',s:d[0]});act='Draw anyway \u2014 mistake '+miss;beat='Mistake';
   if(ecInRescue())note='Burned a rescue card. The rescue director keeps the shape it promised.';
   else if(LV.live)note='Burned a draw. The director rebinds what has not been seen yet.';
-  else{const r=reDirect();
+  else{let r=reDirect();
+    // A voluntary draw is the one move exh() never modelled: it recurses into a draw only
+    // when nothing is playable, so this line is outside the proof. reDirect re-proves the
+    // SAME target, which is right when the draw cost nothing - but a spent draw cannot be
+    // un-spent, and on a win target the best number still reachable is one lower. The
+    // ladder already walks tv inside its band for a deck that GREW; this is the same move
+    // with the opposite sign, and without it a wasted draw drops the level to live steering
+    // when a perfectly good Close Win one number down was available.
+    if(r==='live'){const v=absorbWastedDraw();if(v!==null){LV.liveDeck=false;r='reband';}}
     note='Burned a draw with a playable card on the board. '+REDIRECT_NOTE[r];}
   health=LV.liveDeck?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
   render();}
@@ -2025,6 +2042,25 @@ function reDirect(){
       return 'reshaped';}
   }
   LV.liveDeck=true;return 'live';
+}
+// ISSUE-015. A win target is "exactly N draws unused", so a draw the plan did not budget
+// costs exactly one: the best value still reachable is N-1. Walk down inside the band and
+// re-prove, nearest first. Only wins - a lose target counts stranded tableau cards, which a
+// draw does not touch, and Last Card Win has a band of width zero and can absorb nothing.
+//
+// Proving against unlimited voluntary draws is impossible, not merely hard: a player who
+// empties the deck forces 0 unused whatever the card values are. This absorbs up to the
+// width of the band, which is where real players sit.
+function absorbWastedDraw(){
+  if(!LV||LV.live||!LV.tgt||!LV.tgt.win)return null;
+  const bd=bandOf(), wilds=countWilds(dk);
+  for(let v=LV.tv-1;v>=bd[0];v--){
+    const d=proveFrom(v,200);
+    if(d){dk=d;LV.deck=d.slice();LV.tv=v;LV.band=bd;replans++;
+      preserveWilds(wilds);
+      return v;}
+  }
+  return null;
 }
 
 
@@ -2350,7 +2386,12 @@ function addExtraCards(n,source){
     }
     LV.deck=dk.slice();
   }
-  const amount=added.length||n;
+  // ISSUE-013. `added.length||n` read a count of ZERO as "absent" and fell back to n, so a
+  // grant that ran out of rank supply and added nothing still moved the target by n. The
+  // live branch legitimately has an empty `added` - it mints on demand and only the count
+  // moves - so the fallback belongs to that branch alone, not to the failure case.
+  const amount=(LV.live||LV.liveDeck)?n:added.length;
+  if(amount<=0)return null;                    // nothing was granted; nothing to absorb
   const evt={rewardType:'ExtraCards',amount:amount,source:source||'Other',
     deckBefore:before,deckAfter:before+amount,
     insertionIndex:added.length?added[0].at:-1,specialCardType:'None',
@@ -2519,6 +2560,9 @@ const REDIRECT_NOTE={
             'and re-proved the target from this position.',
   reshaped:'Off the planned line, so the director re-dealt everything you have not seen '+
            '\u2014 the face-down cards and the rest of the deck \u2014 and re-proved the target.',
+  reband:'That draw was not in the plan and cannot be taken back, so the target stepped '+
+         'down one inside its band and was re-proved against that. Same outcome, one '+
+         'number tighter.',
   live:'Off the planned line, and nothing the director can still change proves the target '+
        'from here, so it steers the rest live.'};
 // ==== EXTRA CARD EXPERIENCE DIRECTOR =========================================
