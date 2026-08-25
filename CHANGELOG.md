@@ -1,5 +1,69 @@
 # Changelog
 
+## 1.3.0 — 2026-08-25
+
+Six issues closed. The verified director now has **zero failures** across every pair it
+proves — and it proves three fewer, because three of them were never really proofs.
+
+### Fixed
+- **ISSUE-011** (HIGH) — `exh()` and `allHit()` had no `isPlusCard` guard, so the verifier
+  explored lines where the player *plays* a plus tile, spending a match on it and taking its
+  rank onto the waste, and never modelled the free self-clear. On any level with tiles the
+  proof described a different game. Both now refuse tiles as `legals()` does, and
+  `plusClose()` closes the cleared set over them — `plusSweep()`'s rule on the mask,
+  idempotent, no new memo-key field, and a no-op on the 24 levels without tiles.
+- **ISSUE-005** (MED) — comes with it. An uncovered tile is always cleared in the model, so
+  a strand set can no longer contain one.
+- **ISSUE-002** (HIGH) — the extra-card cap was the loop guard at 6, but Comfortable Win
+  permits 4–6 draws unused and can absorb two. `bandRoom()` makes the band the cap; beyond
+  it the reward pays its configured fallback, which is the pathway the streak spec already
+  uses for a loop guard.
+- **ISSUE-015** (CRIT) — absorbed, not eliminated. `absorbWastedDraw()` steps the target
+  down inside its band after a voluntary draw, so a wasted draw costs a number rather than
+  the outcome. It cannot be eliminated; D-010 states the behaviour class instead.
+- **ISSUE-013**, **ISSUE-012** — the `||n` zero-count fallback, and `allHit`'s three
+  indistinguishable falses.
+
+### Added
+- The reachability detector. `contractState()` turns the Cards-left tile red and says why
+  when no play and no remaining grant can reach the band. Pure counting, no search.
+- **D-010** the guarantee's behaviour class · **D-011** the live band is the authored band.
+
+### Changed
+- `liveBand()` returns the authored band. It never affected steering — `bandOf()` always
+  read the real `tgt.lo/hi` — so its whole effect was to grade the live director against a
+  band one wider than the promise. **Reported live in-band accuracy falls ~19 points with
+  no behaviour change**; that is the correction arriving.
+- The Deck tile said "unused" on lose targets, where the band counts stranded cards.
+- `dGoal()` no longer counts plus tiles as cards the player must clear — on L12 the live
+  director was chasing a number three too high. `dReveal()` no longer spends a pool card
+  binding a rank to a tile that can never be played.
+
+### Verification
+    plustest 13/13 · streaktest 26/26 · colortest 11/11 · meter 9/9 · truth 18/18
+
+`reg.js` twice, policy random, against a 1.2.0 baseline of 101 pass / 20 fail:
+
+    run 1   pass 109  fail 12     run 2   pass 108  fail 13
+    VERIFIED  win 64/64 · lose 31/31 · outcome held 950/950 (100%)
+    LIVE      held 90%  ·  in band 62%  ·  exact 36–37%
+
+Verified failures **5 → 0**. Verified coverage 98 → 95 pairs: three win pairs moved to
+live, all on L12 (INFERRED — the only level with tiles), because teaching the verifier that
+tiles clear for free changes the draws-unused arithmetic there. They were never really
+verified. Both live in-band columns now read the same number, which is D-011 landing.
+
+The two runs differ by one pair, and `buildchk` scored 30/50 then 29/50 on two builds of
+the identical file — ISSUE-004, next.
+
+### Known issues
+ISSUE-003 (HIGH, open) — live steering at 36% exact; not a patch, it is the
+progressive-verification work. ISSUE-004 (MEDIUM, open) — non-determinism, and the "by
+design" label is being challenged.
+
+---
+
+
 ## 1.2.0 — 2026-08-25
 
 The session that named the behaviour class — and found that the verified guarantee

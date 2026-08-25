@@ -1,10 +1,5 @@
 # Known Issues
 
-> **Branch `feat/issue-015-absorb-wasted-draw` carries UNVERIFIED fixes for ISSUE-002,
-> ISSUE-005, ISSUE-011, ISSUE-012, ISSUE-013 and ISSUE-015.** No harness has been run
-> against them. The statuses below still read OPEN and stay that way until a measured run
-> says otherwise - a fix nobody has measured is a claim, not a status.
-
 Confirmed problems only. No speculation. Each was reproduced on the current
 `index.html` on 2026-08-24.
 
@@ -26,7 +21,11 @@ optional.
 ---
 
 **ISSUE-002 — Streak ExtraCards default pushes verified levels outside their band**
-Severity: HIGH · Status: OPEN · Introduced: 1.0.0
+Severity: HIGH · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+
+**Fixed 1.3.0.** `bandRoom()` makes the outcome band the cap on extra-card grants rather
+than the loop guard; beyond it the reward pays its configured fallback. Measured over 121 pairs:
+verified failures 5 -> **0**, verified runs holding the outcome **950/950**.
 
 With `STREAK_REWARD.type = 'ExtraCards'` (the current default), rewards grow the
 deck mid-level. The outcome *type* holds, but the value often lands outside the
@@ -69,7 +68,11 @@ Consequence: **whole-build comparison is not a valid test.** Compare
 ---
 
 **ISSUE-005 — Plus Card tiles rescue losing boards**
-Severity: MEDIUM · Status: OPEN · Introduced: 1.0.0
+Severity: MEDIUM · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+
+**Fixed 1.3.0**, by ISSUE-011. With the cleared set closing over tiles, an uncovered tile
+is always cleared in the model, so a strand set can no longer contain one. Verified lose pairs
+went 29/31 -> **31/31**.
 
 A plus tile clears itself for free and grants draws, so a board authored to
 strand cards can be cleared instead. On L12 (3 tiles × 3 = +9 cards on a 10-card
@@ -159,7 +162,12 @@ on demand, which is how it surfaced.
 ---
 
 **ISSUE-011 — `exh()` lets its imaginary player play Plus Cards**
-Severity: HIGH · Status: OPEN · Introduced: 1.0.0
+Severity: HIGH · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+
+**Fixed 1.3.0.** `exh()` and `allHit()` refuse plus tiles as `legals()` does, and
+`plusClose()` closes the cleared set over self-clearing tiles. Cost: verified WIN pairs 67 -> 64,
+all three on L12 (INFERRED - the only level carrying tiles). Those three were never really
+verified; they were proving a game in which the player spends matches on plus tiles.
 
 `legals()` refuses a plus tile as a match target — `if(isPlusCard(i))continue;` — and RULE-002
 says so explicitly. `exh()`'s legality loop has no such guard, so the verifier explores lines
@@ -179,7 +187,10 @@ prover change and needs `tools/equiv.js` to confirm the other 24 levels are unto
 ---
 
 **ISSUE-012 — `allHit()` sets `unsound` and never reads it**
-Severity: MEDIUM · Status: OPEN · Introduced: 1.0.0
+Severity: MEDIUM · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+
+**Fixed 1.3.0.** `HITFAIL` counts a missed line, an exhausted budget and an unsound radix
+separately. Same single return value - every rung must try something else either way.
 
 `allHit` returns `false` for three different reasons — a line genuinely misses, the 90,000
 state cap was exhausted, or a memo-key field overflowed its radix — and the caller cannot
@@ -194,7 +205,10 @@ the search ran out of budget is indistinguishable from one that genuinely cannot
 ---
 
 **ISSUE-013 — `addExtraCards()` retargets for cards it never added**
-Severity: MEDIUM · Status: OPEN · Introduced: 1.0.0
+Severity: MEDIUM · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+
+**Fixed 1.3.0.** The `||n` fallback belongs to the live branch, which legitimately has an
+empty `added`; a genuinely empty grant now raises no event at all.
 
 The grant loop breaks early when `supplyPick()` returns undefined, so it can add fewer cards
 than asked — including none. But the event it raises computes `amount = added.length || n`,
@@ -222,7 +236,13 @@ Fixed by capturing the four fields into `LV.base` at build and restoring them in
 ---
 
 **ISSUE-015 — the verified guarantee does not survive a voluntary draw**
-Severity: CRITICAL · Status: OPEN · Introduced: 1.0.0 · Measured: 1.2.0
+Severity: CRITICAL · Status: FIXED · Introduced: 1.0.0 · Measured: 1.2.0 · Fixed: 1.3.0
+
+**Absorbed, not eliminated, in 1.3.0.** `absorbWastedDraw()` steps the target down inside
+its band, so a wasted draw costs a number rather than the outcome. It cannot be eliminated: a
+player who empties the deck forces 0 unused whatever the card values are, and D-010 states the
+behaviour class the guarantee actually covers. **The draw-rate sweep has not been re-run since
+the fix, so how much of the 2-5% range it recovers is UNKNOWN.**
 
 `exh()` recurses into a draw only when `lg.length===0`, so "proved over every legal
 line" means *every line in which the player plays whenever a play is available*. The
