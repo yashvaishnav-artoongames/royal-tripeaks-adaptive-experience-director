@@ -446,7 +446,10 @@ td.v{font-weight:500;}
 .udb{position:relative;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:.06em;width:100%;height:100%;line-height:1;color:#1a1d23;}
 .udc.red .udb{color:#dc2626;}
-.udb .sy{position:absolute;right:.14em;top:.1em;font-size:.62em;line-height:1;}
+/* right/top in em resolve against the pip's OWN font-size, so the offsets have to grow when
+   the pip does or it ends up tighter, not looser: .14em on a .62em pip is about 1.5px, which
+   put it inside the 7px corner radius and half-swallowed it. */
+.udb .sy{position:absolute;right:.32em;top:.3em;font-size:.74em;line-height:1;}
 .udb .gh{font-size:.64em;font-weight:700;color:#cfd3dc;}
 /* align-items:center, NOT flex-start. flex-start pins the arrow to the cap height of the
    digit, which reads as a superscript hanging off the corner; the arrow belongs on the
