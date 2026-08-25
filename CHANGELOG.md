@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.1.2 — 2026-08-24
+
+### Fixed
+- **ISSUE-010 (CRITICAL)** — a Plus Card fire crashed the board under the live
+  director. A tile clears itself, exposing the cards above it; the live director mints
+  ranks on reveal and nothing revealed those cards, so `render()` threw on a card with
+  no label and the board froze mid-paint with the played card already cleared. The
+  symptom was a card that ignored the first click and cleared on the second.
+  `plusSweep()` now reveals what the tiles uncovered — `dReveal()` for the live
+  director, `ecReveal()` during a rescue, nothing for verified, which never needed it.
+  Fixing it in the sweep rather than in `play()` covers `reset()` too, where a
+  blockerless tile firing at the deal has the same hole.
+
+### Changed
+- `APP_VERSION` 1.1.1 → 1.1.2. PATCH: a crash fix that moves no measured outcome.
+
+### Verification
+    plustest 13/13
+
+L12 forced live, 30 rounds per build, before and after:
+
+    1.1.1 (deployed)  30 of 30 rounds threw, each at its first tile fire, 30 fires total
+    1.1.2             0 of 30 threw, 86 fires total — rounds play through all 3 tiles
+
+The other four suites were not run this time, at the user's instruction. `plustest` is
+the one that drives the Plus Card path.
+
+---
+
+
 ## 1.1.1 — 2026-08-24
 
 ### Added

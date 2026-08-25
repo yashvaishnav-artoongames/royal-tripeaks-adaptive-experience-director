@@ -516,7 +516,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.1.1';
+const APP_VERSION='1.1.2';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -2024,6 +2024,20 @@ function plusSweep(){
     if(hit<0)break;
     fired.push(hit);
     plusFire(hit);
+  }
+  // A tile clears ITSELF, so it can expose cards the caller never got a chance to mint.
+  // The verified director bound every slot at build time and does not care; the live
+  // director and the rescue mint on reveal, and nothing else will do it for them - play()
+  // reveals before the sweep, and reset() and plusFire() do not reveal at all. Left
+  // undone, render() reads LV.LB[i][0] on an unbound exposed card and throws, which
+  // freezes the board on its previous paint with the card already cleared underneath.
+  if(fired.length&&LV){
+    const nw=[];
+    for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
+    if(nw.length){
+      if(ecInRescue()&&EC)ecReveal(nw);
+      else if(LV.live)dReveal(nw);
+    }
   }
   return fired.length?fired:null;
 }

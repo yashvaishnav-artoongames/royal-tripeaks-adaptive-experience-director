@@ -121,3 +121,32 @@ runs. It went unnoticed through 1.0.2 and 1.0.3, both of which shipped with
 "verification not run". Fixed by matching `\r?\n` in all six harnesses. The root
 cause is unaddressed: a `.gitattributes` pinning `index.html` to LF would stop the
 conversion, and adding a file to the repository root needs a decision.
+
+---
+
+**ISSUE-010 — a Plus Card fire crashed the board under the live director**
+Severity: CRITICAL · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.1.2
+
+`plusFire()` clears its tile with `cl.add(i)`, which exposes whatever sat on top of
+it. The verified director does not care — `gen()` binds a rank to every slot at build
+time. The live director mints on reveal, and nothing revealed those cards: `play()`
+calls `dReveal()` *before* `plusSweep()`, and neither `plusFire()` nor `reset()`
+reveals at all. `render()` then read `LV.LB[i][2]` on a card with no label and threw:
+
+    Uncaught TypeError: Cannot read properties of undefined (reading '2')
+        at render (index.html:3541)
+        at play (index.html:1825)
+
+Because the throw lands after `cl.add()` and after the tile has fired and pinged, the
+board freezes on its previous paint with the played card already cleared underneath —
+so the card looks unresponsive, and a second click appears to "fix" it. The second
+click re-enters `play()`, `dReveal()` now sees the exposed cards, and the board jumps
+to the correct state. Reported from the live site by the user on L12.
+
+Reproduced 2026-08-24 on the 1.1.1 build, L12 forced live: **30 of 30 rounds threw**,
+each at its first tile fire. With the fix, 0 of 30, and the rounds play through all
+three tiles.
+
+Latent until 1.1.1: a plus level only reaches the live director if the verified
+director cannot prove it, which is rare on L12. The director toggle made it reachable
+on demand, which is how it surfaced.
