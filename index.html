@@ -543,7 +543,11 @@ td.v{font-weight:500;}
    the pip does or it ends up tighter, not looser: .14em on a .62em pip is about 1.5px, which
    put it inside the 7px corner radius and half-swallowed it. */
 .udb .sy{position:absolute;right:.32em;top:.3em;font-size:.74em;line-height:1;}
+/* Ghosts fade WITHIN the card colour family, matching the reference sheet: grey is faded
+   black, so a red card ghosts in faded red - the same tint the double card uses for its
+   rule. Still a step lighter than the live rank, which is the part doing the work. */
 .udb .gh{font-size:.64em;font-weight:700;color:#cfd3dc;}
+.udc.red .udb .gh{color:#f0b4b4;}
 /* align-items:center, NOT flex-start. flex-start pins the arrow to the cap height of the
    digit, which reads as a superscript hanging off the corner; the arrow belongs on the
    digit's own centre line, beside it rather than above it. */
