@@ -360,6 +360,7 @@ td.v{font-weight:500;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.05;}
 .wildb .wv{font-weight:800;color:#b45309;font-size:1.15em;}
 .wildb .wl{font-size:8.5px;font-weight:800;letter-spacing:.06em;color:#d97706;margin-top:1px;}
+.wgold .rk{color:#b45309;} .wgold .sy{color:#d97706;font-size:9px;font-weight:800;}
 .dblc{border-color:#a16207;box-shadow:inset 0 0 0 2px #fde68a;}
 .dblc .rk{letter-spacing:-.04em;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -1863,7 +1864,14 @@ function play(i){snap();const ww=wild;wild=false;
     const nw=[];for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
     dReveal(nw);}
   const rv=unl(i),lf=N-cl.size;
-  log.push({t:'p',s:LV.LB[i][0]+LV.LB[i][1]});act='Play '+LV.LB[i][0]+LV.LB[i][1];
+  // A wild slot has no label - it has no rank either, that is the whole category - so this
+  // has to use `lab`, which already handles it. Reading LV.LB[i] here threw the moment a wild
+  // was played, and because the throw lands after cl.add(i) the board froze on its previous
+  // paint with the card already cleared underneath: ISSUE-010's signature exactly.
+  // The ?? guard is deliberate: an unlabelled ordinary slot is a defect worth seeing, but it
+  // should cost a character in the log, not the rest of the round.
+  const face=lab?(lab[0]+lab[1]):'?';
+  log.push({t:'p',s:face});act='Play '+face;
   if(k%PIPS===0){py++;streakComplete();}
   // the match may have uncovered one or more plus tiles; they fire immediately, and one
   // can uncover the next
@@ -1990,7 +1998,8 @@ function reassignUnseen(rng){
     if(suit){const k=r+suit;pairUsed[k]=(pairUsed[k]||0)+1;}};
   claim(LV.seed,LV.seedCard[1]);
   for(let p=0;p<di;p++)claim(dk[p][1],dk[p][0].slice(-1));
-  for(let i=0;i<N;i++)if(cl.has(i)||expo(i))claim(LV.rank[i],LV.LB[i][1]);
+  // A wild consumes no supply and carries no label, so it is skipped rather than read.
+  for(let i=0;i<N;i++)if((cl.has(i)||expo(i))&&!isWildSlot(i)&&LV.LB[i])claim(LV.rank[i],LV.LB[i][1]);
   const pool=[];
   ALL.forEach(function(r){for(let c=0;c<sup[r];c++)pool.push(r);});
   if(pool.length<hid.length+freeDeck)return null;
@@ -3697,9 +3706,17 @@ function render(){
   let a1='',a2='';
   if(!won&&!lost){
     if(lg.length>=2&&!wild){
-      a1+=lg.map(i=>'<button onclick="play('+i+')"><span'+(LV.LB[i][2]?' class="red"':'')+
-        '><span class="rk">'+LV.LB[i][0]+'</span><span class="sy">'+LV.LB[i][1]+'</span></span>'+
-        ' \u00b7 unblocks '+unl(i)+'</button>').join('');
+      a1+=lg.map(function(i){
+        // A wild slot has no label - it has no rank either, that is the category. It is also
+        // the one card that always plays, so the button says that instead of a rank.
+        const L0=LV.LB[i];
+        const inner=isWildSlot(i)
+          ?'<span class="wgold"><span class="rk">♛</span><span class="sy">WILD</span></span>'
+          :('<span'+(L0&&L0[2]?' class="red"':'')+'><span class="rk">'+(L0?L0[0]:'?')+
+            '</span><span class="sy">'+(L0?L0[1]:'')+'</span></span>');
+        return '<button onclick="play('+i+')">'+inner+
+          (isWildSlot(i)?' · matches anything':(' · unblocks '+unl(i)))+'</button>';
+      }).join('');
     }else if(!wild){
       a1+='<button class="pri" onclick="mainAct()">'+
         (lg.length===1?'Next move':'Draw a card')+'</button>';}
