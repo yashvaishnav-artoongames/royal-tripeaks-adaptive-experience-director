@@ -65,6 +65,22 @@ different result for the identical build.
 Consequence: **whole-build comparison is not a valid test.** Compare
 `exh`/`allHit` on identical inputs instead — `tools/equiv.js`.
 
+**Measured 2026-08-25.** Two `reg.js` runs of identical code differed by one pair, and
+`buildchk` scored 30/50 then 29/50 on two builds of the same file — a 1–2% noise floor on
+every number this project produces.
+
+**Attempted and parked** on `feat/issue-004-deterministic-build`. Replacing the wall-clock
+budget in `searchPass` and `quickValidate` with a work budget counted in `exh()` calls is
+the right shape — generation runs ahead of the player, so the latency argument for a clock
+does not apply there, and work is machine-independent. It failed on calibration: the old
+clock capped a *failing* search at ~1.1s per candidate value, while a work budget burns the
+whole allowance every time, so all the cost lands on levels that cannot prove. At 400
+attempts per value, `streaktest` — thirteen builds — had not finished in 13 minutes against
+under a minute for the entire gate. Sizing it needs a measured run per candidate value.
+
+The mid-round half should NOT be converted: `proveFrom`, `reDirect` and `verifiedAbsorb`
+run inside a player’s tap, where the deadline protects frame time rather than nothing.
+
 ---
 
 **ISSUE-005 — Plus Card tiles rescue losing boards**
