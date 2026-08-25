@@ -375,20 +375,23 @@ td.v{font-weight:500;}
 /* Two ranks stacked with a rule, both pips in the corner. Sizes are in em, NOT px: the
    board scales every card by SC and render() sets each card's font-size from its own
    width, so a fixed 19px rank overflows the 44px card a dense board draws. */
-.pc.dblc{background:#fff;border:2px solid #1a1d23;}
-.pc.dblc.red{border-color:#dc2626;}
-/* A double is an ordinary card that answers one extra rank, not a category of its own -
-   so unlike the wild it still takes the blue playable ring. The stacked ranks and the
-   1.35x size carry the identity; the ring carries the state. */
-.pc.dblc.pl{border-color:#3b5bdb;background:#eef2ff;}
+/* No border of its own: it wears the same edge as every other card, and takes the blue
+   playable ring like any of them. A double is an ordinary card that answers one extra
+   rank - the stacked ranks and the 1.35x size carry the identity, the ring carries the
+   state. That is the opposite of the wild, which is its own category and keeps its own
+   colour when it lights up.
+   Sized in em throughout: the board scales cards by SC and render() sets each card's
+   font-size from its own width, so px here would overflow the 44px card a dense board
+   draws. An ordinary rank is 1em, so .95em puts these within a hair of their neighbours
+   before the 1.35x is applied on top. */
 .dblb{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:.15em;width:100%;height:100%;}
-.dblb .rk{font-size:.75em;font-weight:800;letter-spacing:-.04em;line-height:1;color:#1a1d23;}
+  gap:.12em;width:100%;height:100%;}
+.dblb .rk{font-size:.95em;font-weight:800;letter-spacing:-.04em;line-height:1;color:#1a1d23;}
 .dblc.red .dblb .rk{color:#dc2626;}
-.dblb .rule{width:.8em;height:1.5px;border-radius:1px;background:#c3c8d4;}
+.dblb .rule{width:.9em;height:1.5px;border-radius:1px;background:#c3c8d4;}
 .dblc.red .dblb .rule{background:#f0b4b4;}
-.dblb .su{position:absolute;right:.2em;top:.12em;font-size:.46em;font-weight:600;
-  line-height:.92;text-align:center;color:#1a1d23;}
+.dblb .su{position:absolute;right:.16em;top:.1em;font-size:.6em;font-weight:600;
+  line-height:.9;text-align:center;color:#1a1d23;}
 .dblc.red .dblb .su{color:#dc2626;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
   width:100%;height:100%;line-height:1;}
