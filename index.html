@@ -366,8 +366,12 @@ td.v{font-weight:500;}
 /* Playable changes the EDGE only. The face stays #fffbeb whatever the state, because the
    face is what identifies the card - repainting it made the wild look like a different
    card rather than the same card in a different state. */
-.pc.wildc.pl{border:2px solid #e0a316;}
-.pc.wildc.clk:hover{border-color:#c98f12;}
+/* Both of these MUST restate the background. Removing the line does not keep the face -
+   .pc.pl paints #eef2ff and .pc.clk:hover paints #e0e7ff, and a more specific selector
+   that only sets a border leaves those in place. That is why the wild's centre went blue
+   on hover while its edge stayed gold. */
+.pc.wildc.pl{background:#fffbeb;border:2px solid #e0a316;}
+.pc.wildc.clk:hover{background:#fffbeb;border-color:#c98f12;}
 /* Refused, not broken: it dims, it takes a pointer, and it answers when tapped. */
 .pc.wildno{opacity:.5;pointer-events:auto;cursor:not-allowed;}
 .pc.wildno:hover{opacity:.68;}
