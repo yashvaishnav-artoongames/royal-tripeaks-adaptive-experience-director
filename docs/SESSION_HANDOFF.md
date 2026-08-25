@@ -1,6 +1,52 @@
 # Session Handoff
 
-Updated 2026-08-24, after 1.1.0.
+Updated 2026-08-25, after 1.4.0. The 1.1.0 notes below are kept as history; where they
+disagree with this block, this block is newer.
+
+## Next session starts here
+
+**Read `docs/specs/brain_engine_spec.md` first.** It is a validated, staged plan for giving
+both directors one shared model of the obstacles, and it is the agreed next piece of work.
+Four validations are already done and reproducible with
+`node docs/measurements/brain-engine-validation.js`.
+
+The defect it fixes, in one line: **the matching rule lives twice.** `slotTakes()` knows the
+obstacles; the bare `cyc(rank[i],w)` inside `exh()`/`allHit()` knows none of them. That is why
+every obstacle level is gated to live and none of them has a proof.
+
+Start at **Stage 0**, which is a proven no-op, and do not begin Stage 1 until `equiv.js`
+reports zero differences. Section 7 of the spec has three questions worth answering before the
+first commit.
+
+## Where things stand at 1.4.0
+
+`main` is at **1.4.0**, tagged `v1.4.0`, **not pushed** — the live site is whatever origin
+last received. Every push to `main` is a live deploy.
+
+Branch `feat/wild-and-double-cards` is one commit ahead of `main`: the live director's
+obstacle ledger (`oLedger`, and `dGoal`/`dRunLen`/`dReveal` reading it).
+
+1.4.0 added Lock & Key (D-013), Up & Down (D-014), the `BLACKP` colour mix (D-015), a rebuilt
+KPI panel, the `FishCards` and `IncrementalCards` importers, and L7/L41 as built-ins. Five
+built-in levels now, one per obstacle: L12 plus, L21 wild, L111 double, L7 lock/key, L41
+up/down.
+
+## Two things that will mislead you
+
+**The changelog and `KNOWN_ISSUES` are ahead of the code for 1.2.0 and 1.3.0.** `index.html`
+was reverted to 1.1.1 mid-branch, rolling both releases out of the build while their entries
+stayed. Seven issues are marked FIXED against code that is not present. ISSUE-011, 012 and 014
+were re-read against source and are confirmed still broken; 002, 005, 013 and 015 are inferred
+from the same revert. `KNOWN_ISSUES.md` carries a banner saying so. The version jumps 1.1.1 to
+1.4.0 because `v1.2.0` and `v1.3.0` are already tagged.
+
+**No suite has been run on this branch.** A standing instruction; the work was checked by parse
+checks, targeted arithmetic, and the user in the browser. No commit on this branch claims a
+suite number, and none should be read as implying one.
+
+---
+
+## History — as of 1.1.0
 
 ## Where things stand
 
