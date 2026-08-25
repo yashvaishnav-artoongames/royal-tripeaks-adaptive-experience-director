@@ -213,3 +213,39 @@ level being measured was not the level that was built. Measured effect on `reg.j
 violations 55 → 1, and the live side read 73% held / 19% exact instead of 93% / 31%.
 
 Fixed by capturing the four fields into `LV.base` at build and restoring them in `reset()`.
+
+---
+
+**ISSUE-015 — the verified guarantee does not survive a voluntary draw**
+Severity: CRITICAL · Status: OPEN · Introduced: 1.0.0 · Measured: 1.2.0
+
+`exh()` recurses into a draw only when `lg.length===0`, so "proved over every legal
+line" means *every line in which the player plays whenever a play is available*. The
+game offers a Draw Anyway button and real solitaire players tap the deck at will, so
+the guarantee's behaviour class excludes ordinary play.
+
+Measured over 121 level/outcome pairs × 10 plays, varying the rate at which the player
+draws with a play available:
+
+    draw rate   verified WIN pairs passing   outcome held   reg pass/fail
+       0% ctl          62 / 67                   100%          101 / 20
+       2%              41 / 67                    97%           74 / 47
+       5%              28 / 67                    92%           62 / 59
+      10%               6 / 67                    82%           38 / 83
+      25%               0 / 67                    51%           18 / 103
+
+Two percent is one early draw in fifty decisions. The 0% control scores 101/20,
+identical to the `random` policy, so the collapse is caused by the draws and not by
+the policy's extra `rnd()` consumption.
+
+`miss1()` calls `reDirect()` to re-prove, but a spent draw cannot be un-spent: once
+the draw budget is gone a win target is arithmetically unreachable and no re-plan
+recovers it. Lose targets are far more robust — wasting draws helps you lose. The live
+director is unaffected at every rate and **overtakes verified past roughly 5%**.
+
+Proving against unlimited voluntary draws is impossible, not merely hard: a player who
+empties the deck forces "0 unused" whatever the card values are. The available fix is
+absorption, not proof — treat a wasted draw as a supply change of −1 and send it
+through the existing ladder, so `retarget()` steps the target down inside its band. That
+covers wasted draws up to the band width, which spans the 2–5% range where real players
+sit. Last Card Win has zero band width and cannot absorb any.
