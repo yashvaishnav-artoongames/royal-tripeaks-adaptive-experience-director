@@ -365,6 +365,12 @@ td.v{font-weight:500;}
    is that it always plays, so the highlight should say louder, not different. */
 .pc.wildc.pl{background:#fef3c7;border:2px solid #e0a316;}
 .pc.wildc.clk:hover{background:#fde9a9;}
+/* Refused, not broken: it dims, it takes a pointer, and it answers when tapped. */
+.pc.wildno{opacity:.5;pointer-events:auto;cursor:not-allowed;}
+.pc.wildno:hover{opacity:.68;}
+@keyframes shk{0%,100%{transform:translateX(0)}18%{transform:translateX(-4px)}
+  38%{transform:translateX(4px)}58%{transform:translateX(-3px)}78%{transform:translateX(2px)}}
+.wildb.shk{animation:shk .38s ease;}
 .pc.wildc.pl .wildb .wv,.pc.wildc.pl .wildb .wl{color:#92610a;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;}
 .wildb .wv{width:1.45em;height:1.38em;display:block;fill:currentColor;color:#b8790a;}
@@ -1459,6 +1465,17 @@ function scrollAdvance(){
   if(!VF.size)VGATE=false;
 }
 const onScreen=i=>!SCROLL||!VF.has(i);
+// A wild refused because the waste is itself wild. Every other unplayable card on the
+// board is either face-down or obviously the wrong rank; a wild looks available at all
+// times, so silence reads as a broken card rather than as a rule.
+let SHAKE=-1;
+function wildRefused(i){
+  SHAKE=i;beat='Blocked';
+  note='A Wild will not go onto another Wild — put an ordinary card on the waste first, '+
+    'then this one plays on anything.';
+  render();
+  setTimeout(function(){SHAKE=-1;render();},420);
+}
 const legals=()=>{const a=[];
   for(let i=0;i<N;i++){
     if(isPlusCard(i))continue;                  // a plus tile is never a match target
@@ -3569,9 +3586,10 @@ function render(){
         (small?'':'<span class="pl">PLUS<br>CARD</span>')+'</span>';
       cls+=' plusc';}
     else if(isWildSlot(i)){
-      body='<span class="wildb"><svg class=\"wv\" viewBox=\"0 0 20 19\" aria-hidden=\"true\"><path d=\"M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z\"/></svg>'+
+      body='<span class="wildb'+(SHAKE===i?' shk':'')+'"><svg class=\"wv\" viewBox=\"0 0 20 19\" aria-hidden=\"true\"><path d=\"M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z\"/></svg>'+
         (CW<46?'':'<span class="wl">WILD</span>')+'</span>';
       cls+=' wildc';
+      if(!pl&&e&&onScreen(i))cls+=' wildno';
       if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
     else if(isDblSlot(i)&&LV.rank[i]!==undefined){
       // Two ranks stacked, high value on top, divided by a rule - each row is a whole card.
@@ -3591,7 +3609,9 @@ function render(){
       if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
     else body=TG.count?'<span style="font-size:10px;color:#9ca3af">'+bleft(i)+'</span>'
       :'<span style="width:5px;height:5px;border-radius:50%;background:#c9ccd6;display:block"></span>';
-    h+='<div class="'+cls+'"'+(pick?' onclick="play('+i+')"':'')+' style="'+st+'">'+body+'</div>';}
+    const refuse=isWildSlot(i)&&!g&&e&&onScreen(i)&&!pick;
+    h+='<div class="'+cls+'"'+(pick?' onclick="play('+i+')"':
+      (refuse?' onclick="wildRefused('+i+')"':''))+' style="'+st+'">'+body+'</div>';}
   B.innerHTML=h;
   let ph='';
   for(let i=0;i<PIPS;i++){
