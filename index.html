@@ -497,6 +497,13 @@ td.v{font-weight:500;}
   <div class="ctlbar">
     <select id="lsel"></select>
     <select id="tsel"></select>
+    <select id="csel" title="Colour mix - the share of cards the director deals black. The streak meter pays a bonus for five cards of ONE colour, so this decides how often that bonus can fire at all. Applied on the next Generate, like the outcome beside it.">
+      <option value="0">Suits: all red</option>
+      <option value="0.25">Suits: 25% black</option>
+      <option value="0.5" selected>Suits: 50/50</option>
+      <option value="0.75">Suits: 75% black</option>
+      <option value="1">Suits: all black</option>
+    </select>
     <button class="pri" onclick="build()">Generate level</button>
     <button id="flbtn" onclick="toggleForceLive()">Director: auto</button>
     <button onclick="pickFolder()">Load levels…</button>
@@ -1809,6 +1816,10 @@ function setBusy(msg){
 }
 function build(){
   if(BUILDING)return;
+  // Read at build time rather than on change, exactly like the outcome select beside it.
+  // A colour mix can only show up in cards that have not been dealt yet, so applying it at
+  // any other moment would claim an effect the board does not have.
+  const cs=document.getElementById('csel');if(cs)setColorMix(cs.value);
   const tgt=OUT[+document.getElementById('tsel').value];
   document.getElementById('bsub').textContent=L.short;
   document.getElementById('movetag').textContent='Move 0';
