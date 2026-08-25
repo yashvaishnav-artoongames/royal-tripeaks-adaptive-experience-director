@@ -1327,7 +1327,17 @@ function dBind(i,r){LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r);}
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
 // tv cards must be left standing, so they are not part of the goal.
-function dGoal(){return (N-cl.size)-(LV.tgt.win?0:LV.tv);}
+// How many cards the player still has to clear from here. Plus tiles clear themselves, so
+// they were never cards the player has to match - and N counts them, so on L12 the live
+// director was chasing a number three too high for the whole round.
+//
+// Corrected for wins only, deliberately: on a win every tile fires, so the matchable count
+// is exact. On a lose the tv slots left standing may themselves include a still-covered
+// tile, and which ones is not knowable from a count - so the old figure stands there. That
+// asymmetry is ISSUE-005 and it wants the verifier fix, not a guess here.
+function dGoal(){
+  return LV.tgt.win?((N-cl.size)-tilesLeft()):((N-cl.size)-LV.tv);
+}
 function dRunLen(){
   const goal=dGoal(), C=(LV.deckLen-di)-(LV.tgt.win?LV.tv:0);
   if(goal<=0)return 0;            // enough cleared already: stall from here
@@ -1337,6 +1347,12 @@ function dRunLen(){
 // bind cards that just turned face up
 function dChildren(i){let c=0;for(let y=0;y<N;y++)if((DEP[y]||[]).indexOf(i)>=0)c++;return c;}
 function dReveal(newly){
+  // A plus tile needs no rank - it is never a match target, and it fires the moment it is
+  // uncovered. Binding one spent a card out of the live pool for a slot the player can
+  // never play, three times over on L12. Filtered here rather than at the three call sites
+  // so no future caller can reintroduce it. render() paints tiles from their own branch and
+  // never reads LB for them, so leaving them unbound is safe.
+  newly=newly.filter(function(z){return !isPlusCard(z);});
   if(!newly.length)return;
   // lead with the card that opens the most: a chain that keeps revealing keeps running
   newly=newly.slice().sort(function(a,b){return dChildren(b)-dChildren(a);});
@@ -1439,6 +1455,50 @@ function exh(rank,deck,seed,win,tv,needPay){
 }
 // Why the last allHit calls failed. Reset per build; read by the proof panel and harnesses.
 let HITFAIL={miss:0,cap:0,unsound:0};
+// ==== IS THE OUTCOME STILL REACHABLE? =========================================
+// The director had no way to notice it had already lost. A Close Lose asking for 3-5
+// stranded cards would walk the board down to 1 card left with a playable match on the
+// waste - one tap from clearing a level authored to lose - and the panel went on saying
+// "aiming at 4, corrected as you play" with 0 re-plans. Nothing was wrong with any single
+// decision; nothing was watching the arithmetic.
+//
+// Pure counting, no search: this runs on every paint and must not touch a Date.now budget
+// that the recovery ladder is spending. Deliberately CONSERVATIVE - it reports lost only
+// when no play and no grant can reach the band, so a false alarm is not possible even if
+// that means missing some genuinely dead boards.
+// Plus tiles still on the board. They clear themselves, so they are never cards the player
+// has to match - but they do occupy slots, so N counts them and most arithmetic over-counts.
+function tilesLeft(){
+  let n=0;
+  if(typeof PLUS!=='undefined'&&PLUS)for(const k2 in PLUS)if(!cl.has(+k2))n++;
+  return n;
+}
+function growthLeft(){
+  let g=0;
+  if(typeof PLUS!=='undefined'&&PLUS)              // tiles that have not fired yet
+    for(const k2 in PLUS)if(!cl.has(+k2))g+=PLUS[k2];
+  const R=(typeof STREAK_REWARD!=='undefined')?STREAK_REWARD:null;
+  if(R&&R.type==='ExtraCards')                      // streak headroom still unspent
+    g+=Math.max(0,R.maxExtraCardsPerLevel-STREAK_GRANTED);
+  if(R&&R.type==='WildCard')
+    g+=Math.max(0,R.maxRewardsPerLevel-STREAK_REWARDS);
+  return g;
+}
+function contractState(left,dkn){
+  if(!LV||!LV.tgt)return {lost:false,why:''};
+  const bd=LV.band?LV.band:[LV.tv,LV.tv];
+  if(LV.tgt.win){
+    // draws unused at the win can never exceed what is left plus what may still arrive
+    const ceiling=dkn+growthLeft();
+    if(left>0&&ceiling<bd[0])
+      return {lost:true,why:'at most '+ceiling+' can be left unused, band needs '+bd[0]};
+  }else{
+    // stranded cards can never exceed the cards still on the board
+    if(left<bd[0])
+      return {lost:true,why:'only '+left+' card'+(left===1?'':'s')+' left, band needs '+bd[0]};
+  }
+  return {lost:false,why:''};
+}
 function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
   const memo=new Map();let cap=0,unsound=false;
   const DJR=deck.length+2, WR=WASTE_RADIX;
@@ -3599,9 +3659,16 @@ function render(){
   const won=left===0,lost=!won&&dkn===0&&lg.length===0&&!wild,mt=k%PIPS;
   const den=!won&&!lost&&!wild&&lg.length===0&&mt===PIPS-1&&left>0;
   const AV=avail();
+  const CS=contractState(left,dkn);
   document.getElementById('kpis').innerHTML=
-    kpi('#3b5bdb','TAB','Cards left',left,left+' of '+N)+
-    kpi('#7c3aed','DCK','Deck left',dkn,LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]+' unused'):('target '+LV.tv+' unused'))+
+    kpi(CS.lost?'#dc2626':'#3b5bdb','TAB','Cards left',left,
+      CS.lost?('<b>outcome lost</b> \u2014 '+CS.why):(left+' of '+N))+
+    // The band means DRAWS UNUSED on a win and STRANDED TABLEAU CARDS on a lose. This tile
+    // said "unused" either way, so on every lose level it pinned the strand-count band onto
+    // the deck pile - the exact confusion D-004 exists to prevent.
+    kpi('#7c3aed','DCK','Deck left',dkn,
+      (LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]):('target '+LV.tv))+
+      (LV.tgt.win?' unused':' unreachable'))+
     kpi('#059669','STK','Streak',k,mt+' of '+PIPS+' on meter')+
     kpi('#f59e0b','PAY','Payouts',py,'floor \u2265'+LV.ver.minPay)+
     kpi('#dc2626','ERR','Off-plan',miss+wx,replans+' re-plan'+(replans===1?'':'s'))+
