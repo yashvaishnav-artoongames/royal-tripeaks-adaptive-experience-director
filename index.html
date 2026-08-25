@@ -363,15 +363,17 @@ td.v{font-weight:500;}
    card and made the wild look like it belonged to the director rather than to itself.
    A wild keeps its own colour when it lights up - it is the one card whose whole identity
    is that it always plays, so the highlight should say louder, not different. */
-.pc.wildc.pl{background:#fef3c7;border:2px solid #e0a316;}
-.pc.wildc.clk:hover{background:#fde9a9;}
+/* Playable changes the EDGE only. The face stays #fffbeb whatever the state, because the
+   face is what identifies the card - repainting it made the wild look like a different
+   card rather than the same card in a different state. */
+.pc.wildc.pl{border:2px solid #e0a316;}
+.pc.wildc.clk:hover{border-color:#c98f12;}
 /* Refused, not broken: it dims, it takes a pointer, and it answers when tapped. */
 .pc.wildno{opacity:.5;pointer-events:auto;cursor:not-allowed;}
 .pc.wildno:hover{opacity:.68;}
 @keyframes shk{0%,100%{transform:translateX(0)}18%{transform:translateX(-4px)}
   38%{transform:translateX(4px)}58%{transform:translateX(-3px)}78%{transform:translateX(2px)}}
 .wildb.shk{animation:shk .38s ease;}
-.pc.wildc.pl .wildb .wv,.pc.wildc.pl .wildb .wl{color:#92610a;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;}
 .wildb .wv{width:1.45em;height:1.38em;display:block;fill:currentColor;color:#b8790a;}
 .wildb .wl{font-size:9px;font-weight:800;letter-spacing:.3px;color:#b8790a;margin-top:2px;}
