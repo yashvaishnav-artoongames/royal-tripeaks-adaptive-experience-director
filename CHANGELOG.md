@@ -1,5 +1,71 @@
 # Changelog
 
+## 1.2.0 — 2026-08-25
+
+The session that named the behaviour class — and found that the verified guarantee
+does not survive a player who taps the deck.
+
+### Added
+- **Four player policies** in `botPlay(seed, policy)`: `random` (byte-identical to the
+  old bot, exactly one `rnd()` per decision so historical seeds keep their meaning),
+  `greedy`, `cautious`, `drawhappy`. Every reliability figure this project owned was
+  measured against a uniform-random bot; the behaviour class was undefined and
+  measured by accident. `DRAWHAPPY_P` sets the voluntary-draw rate.
+- Restored `reg.js`, `fulltest.js`, `mkreport.js`, `buildchk.js`, `equiv.js` from
+  `v1.0.1`, each patched for the CRLF prologue trap.
+
+### Fixed
+- **ISSUE-014** — `reset()` restored the deal but not the round's target state:
+  `tv`, `deckLen`, `band`, `wildAt`. Replaying a level inherited the previous round's
+  drift, so a live level's deck grew on every Replay.
+
+### Changed
+- `reg.js` scoring, three corrections. Exactness is measured against the **build-time**
+  target, not an `LV.tv` the ladder moves mid-round. "The deck moved" now means the
+  **target** moved (`status!=='keep' || tvMoved!==0`) — the old test counted any supply
+  record, so the exact branch was almost never taken. Live pairs are scored **both**
+  ways: against the authored `OUT` band and against the widened band `liveBand()`
+  advertises.
+- `APP_VERSION` 1.1.2 → 1.2.0. MINOR: measured numbers move.
+
+### Recorded, not fixed
+- **ISSUE-011** (HIGH) — `exh()` has no `isPlusCard` guard, so the verifier plays plus
+  tiles as ordinary cards. On any level with tiles the proof describes a different game.
+- **ISSUE-012** — `allHit()` sets `unsound` and never reads it; `false` conflates a
+  missed line, an exhausted budget and an unsound radix, and memoises it.
+- **ISSUE-013** — `addExtraCards()` computes `amount = added.length || n`, so a grant
+  that added zero cards still retargets by `n`.
+
+### Verification
+    plustest 13/13 · streaktest 26/26 · colortest 11/11 · meter 9/9 · truth 18/18
+
+**Baseline by player policy** — 121 pairs × 10 plays each:
+
+    policy      reg pass/fail   live held   live in band (OUT)   live exact
+    random         101 / 20        88%           57%                30%
+    greedy         101 / 20        87%           50%                27%
+    cautious       104 / 17        90%           61%                36%
+    drawhappy       20 / 101       87%           62%                38%
+
+**Voluntary-draw sweep** — verified win pairs passing, by draw rate:
+
+    0%  (control)   62 / 67     outcome held 100%    reg 101/20
+    2%              41 / 67     outcome held  97%    reg  74/47
+    5%              28 / 67     outcome held  92%    reg  62/59
+    10%              6 / 67     outcome held  82%    reg  38/83
+    25%              0 / 67     outcome held  51%    reg  18/103
+
+The 0% control matches `random` exactly, so the collapse is caused by the draws and
+not by the policy's extra random-number consumption. `exh()` only draws when nothing
+is playable, so a voluntary draw is a line no proof covers — and a spent draw cannot
+be un-spent, so a win target is arithmetically gone. Lose targets are far more robust.
+Live is unaffected throughout and **overtakes verified past roughly a 5% draw rate**.
+
+The 50% rate was started and killed: win pairs already reach zero at 25%.
+
+---
+
+
 ## 1.1.2 — 2026-08-24
 
 ### Fixed

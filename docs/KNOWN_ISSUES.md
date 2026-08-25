@@ -150,3 +150,66 @@ three tiles.
 Latent until 1.1.1: a plus level only reaches the live director if the verified
 director cannot prove it, which is rare on L12. The director toggle made it reachable
 on demand, which is how it surfaced.
+
+---
+
+**ISSUE-011 — `exh()` lets its imaginary player play Plus Cards**
+Severity: HIGH · Status: OPEN · Introduced: 1.0.0
+
+`legals()` refuses a plus tile as a match target — `if(isPlusCard(i))continue;` — and RULE-002
+says so explicitly. `exh()`'s legality loop has no such guard, so the verifier explores lines
+in which the player *plays* a tile: spending a match on it and taking its rank onto the
+waste. It also never models the free clear or the deck growth a firing tile causes.
+
+So on any level carrying `PlusCards`, "proved over every legal line" is a proof about a
+different game from the one the player gets. `allHit()` shares the defect, so the recovery
+ladder re-proves the same wrong game. Today that is L12 only — 5 of 125 level/outcome pairs —
+because L12 is the only level with tiles.
+
+This is the root under ISSUE-005. Fixing the guard alone is not sufficient and may reduce
+verified coverage: a level that only proved because tiles were playable would stop proving.
+The full fix is to plan against the eventual deck and model the tiles as unlocks, which is a
+prover change and needs `tools/equiv.js` to confirm the other 24 levels are untouched.
+
+---
+
+**ISSUE-012 — `allHit()` sets `unsound` and never reads it**
+Severity: MEDIUM · Status: OPEN · Introduced: 1.0.0
+
+`allHit` returns `false` for three different reasons — a line genuinely misses, the 90,000
+state cap was exhausted, or a memo-key field overflowed its radix — and the caller cannot
+tell them apart. The `unsound` flag exists to mark the third case and is never read; the
+final line is a bare `return f(...)`. The `false` is also memoised, so an exhausted branch
+poisons the table for the rest of the call.
+
+Conservative in direction: it never claims a proof it does not have. But every ladder rung
+treats "cannot prove" and "does not hold" identically, and a level that drops to LIVE because
+the search ran out of budget is indistinguishable from one that genuinely cannot be proved.
+
+---
+
+**ISSUE-013 — `addExtraCards()` retargets for cards it never added**
+Severity: MEDIUM · Status: OPEN · Introduced: 1.0.0
+
+The grant loop breaks early when `supplyPick()` returns undefined, so it can add fewer cards
+than asked — including none. But the event it raises computes `amount = added.length || n`,
+so when **zero** cards were added the fallback reports `n`, and `verifiedAbsorb(n)` moves the
+target for a deck that did not grow. The `||` is reading 0 as absent.
+
+---
+
+**ISSUE-014 — `reset()` did not restore the round's target state**
+Severity: HIGH · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.2.0
+
+`reset()` restored the deal — rank, labels, deck, pool, suit counters — but not the fields the
+recovery ladder moves while a round runs: `LV.tv` (walked by `retarget`), `LV.deckLen` (grown
+by every supply change on a live level), `LV.band` (rewritten by a reband) and `LV.wildAt`
+(queued by `insertWild`).
+
+So replaying a level inherited the previous round's drift. On a live level the granted deck
+growth accumulated on every Replay, and the target drifted with it — by the tenth pass the
+level being measured was not the level that was built. Measured effect on `reg.js`: 96 pass /
+25 fail became 104 / 17 with the fields restored, non-terminating runs 79 → 13, rank-supply
+violations 55 → 1, and the live side read 73% held / 19% exact instead of 93% / 31%.
+
+Fixed by capturing the four fields into `LV.base` at build and restoring them in `reset()`.
