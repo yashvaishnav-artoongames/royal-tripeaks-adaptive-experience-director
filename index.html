@@ -627,6 +627,12 @@ const secondOf=r=>(r===13?1:r+1);
 const DBLROOTS=[11,12,13];
 const dblRoot=r=>DBLROOTS.indexOf(r)>=0;
 const dblFilter=(i,arr)=>isDblSlot(i)?arr.filter(dblRoot):arr;
+// Suits are handed out as SU[usd[r]%4]. That is deterministic, and usd[r] is 0 for any
+// rank the level has not used yet - which a double root almost always is - so SU[0], the
+// spade, won every time and L111's single double card came out black in every deal.
+// A double is a colour FAMILY, so roll it: four suits, two black and two red, even split.
+// Only called for a double slot, so no ordinary level's random stream moves.
+const dblSuit=rng=>SU[Math.floor(rng()*4)];
 // Does slot i answer a waste of rank w? The one place the two obstacles change the rule.
 function slotTakes(i,w){
   if(isWildSlot(i))return w!==WILD_RANK;      // wild on wild is refused
@@ -1266,7 +1272,8 @@ function liveBand(tgt){
 }
 function genLive(tgt,tv){
   const pool={},usd={};ALL.forEach(function(r){pool[r]=SUP;usd[r]=0;});
-  const lab=r=>{const s=SU[usd[r]%4];usd[r]++;return[RN[r],s,s==='\u2665'||s==='\u2666'];};
+  const lab=(r,dbl)=>{const s=dbl?dblSuit(rnd):SU[usd[r]%4];usd[r]++;
+    return[RN[r],s,s==='\u2665'||s==='\u2666'];};
   const pick=cs=>{if(!cs.length)return undefined;
     let m=-1,o=[];for(const c of cs){if(pool[c]>m){m=pool[c];o=[c];}else if(pool[c]===m)o.push(c);}
     return o[Math.floor(rnd()*o.length)];};
@@ -1274,7 +1281,7 @@ function genLive(tgt,tv){
   if(!roots.length)return null;
   const rank=[],LB=[];
   const seedR=pick(ALL.filter(r=>pool[r]>0));if(seedR===undefined)return null;
-  pool[seedR]--;const seedCard=lab(seedR);
+  pool[seedR]--;const seedCard=lab(seedR,false);
   let first=true;
   for(const rt of roots){
     // A wild root needs no rank at all - binding one spends a card from the pool on a slot
@@ -1288,7 +1295,7 @@ function genLive(tgt,tv){
     if(isDblSlot(rt)){let hi=DBLROOTS.filter(function(x){return pool[x]>0;});
       if(!hi.length)hi=DBLROOTS;c=hi;}
     const r=pick(c);if(r===undefined)return null;
-    pool[r]--;rank[rt]=r;LB[rt]=lab(r);first=false;}
+    pool[r]--;rank[rt]=r;LB[rt]=lab(r,isDblSlot(rt));first=false;}
   const bd=liveBand(tgt);
   return {live:true,tgt:tgt,tv:Math.round((bd[0]+bd[1])/2),band:bd,usedMode:4,unreach:[],
     base:{rank:rank.slice(),LB:LB.slice(),pool:Object.assign({},pool),usd:Object.assign({},usd)},
@@ -1297,7 +1304,7 @@ function genLive(tgt,tv){
     ln:[],dl:[],clamp:9,dead:0,pay:0,needPay:false,
     ver:{minDen:0,minPay:0,states:0,forks:0}};
 }
-function dLabel(r){const s=SU[LV.usd[r]%4];LV.usd[r]++;
+function dLabel(r,dbl){const s=dbl?dblSuit(rnd):SU[LV.usd[r]%4];LV.usd[r]++;
   return[RN[r],s,s==='\u2665'||s==='\u2666'];}
 function dPick(cs){if(!cs.length)return undefined;
   let m=-1,o=[];for(const c of cs){if(LV.pool[c]>m){m=LV.pool[c];o=[c];}else if(LV.pool[c]===m)o.push(c);}
@@ -1311,7 +1318,7 @@ function dBind(i,r){
   // that does not exist, so the root stays in DBLROOTS even when supply says no.
   if(isDblSlot(i)){let w=DBLROOTS.filter(function(x){return LV.pool[x]>0;});
     if(!w.length)w=DBLROOTS;r=w[Math.floor(rnd()*w.length)];}
-  LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r);}
+  LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r,isDblSlot(i));}
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
 // tv cards must be left standing, so they are not part of the goal.
@@ -1967,7 +1974,13 @@ function pickNextDeck(){
 // re-prove the target from the current position. Anything already visible stays put.
 function reassignUnseen(rng){
   const hid=[];
-  for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i))hid.push(i);
+  // A wild slot has no rank and the matching rule never reads one, so dealing it a card
+  // spends supply on a slot that cannot use it: the card is then unavailable to the deck
+  // and to every other hidden slot, and the wild still renders as WILD. genLive skips wild
+  // roots and dReveal filters wilds out of newly, both for this exact reason. This loop
+  // did not, and it is the REPLAN path - so every re-deal quietly burned one card per
+  // hidden wild, and the pool.length check below over-demanded by the same count.
+  for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i))hid.push(i);
   const freeDeck=dk.length-di;
   if(!hid.length&&!freeDeck)return null;
   const sup={},pairUsed={};
@@ -1986,8 +1999,12 @@ function reassignUnseen(rng){
   if(pool.length<hid.length+freeDeck)return null;
   for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));
     const t=pool[i];pool[i]=pool[j];pool[j]=t;}
-  const lab=function(r){
-    for(const s of SU){const k=r+s;
+  const lab=function(r,dbl){
+    // Fixed SU order offers the spade first, so a double took a black suit unless the
+    // spade was already spent. Offer the rolled family's two suits first instead; the
+    // other family still follows, so pair exhaustion behaves exactly as before.
+    const ord=dbl?(rng()<0.5?[0,3,1,2]:[1,2,0,3]).map(function(x){return SU[x];}):SU;
+    for(const s of ord){const k=r+s;
       if((pairUsed[k]||0)<copies){pairUsed[k]=(pairUsed[k]||0)+1;
         return [RN[r],s,s==='\u2665'||s==='\u2666'];}}
     return null;};
@@ -2003,7 +2020,7 @@ function reassignUnseen(rng){
     return undefined;};
   for(const i of hid){const r=takeAt(isDblSlot(i)?dblRoot:null);
     if(r===undefined)return null;
-    const L1=lab(r);if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
+    const L1=lab(r,isDblSlot(i));if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
   const dk2=dk.slice(0,di);
   for(let p=0;p<freeDeck;p++){const r=takeAt(null);if(r===undefined)return null;
     const L2=lab(r);if(!L2)return null;
