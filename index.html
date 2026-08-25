@@ -1607,9 +1607,54 @@ function dBind(i,r){
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
 // tv cards must be left standing, so they are not part of the goal.
-function dGoal(){return (N-cl.size)-(LV.tgt.win?0:LV.tv);}
+// ==== WHAT THE OBSTACLES DO TO THE DIRECTOR'S ARITHMETIC ======================
+// The live director plans in two numbers: how many cards still have to leave the board, and
+// how many draws it has to spend getting them off. Both counted every remaining tile as an
+// ordinary card costing one match and taking one draw. Four of the five obstacles break that
+// assumption, and not all in the same direction:
+//
+//   plus tile    clears ITSELF and pays the deck   not the player's work, and MORE draws
+//   lock & key   two tiles for one tap, no draw    not the player's work
+//   wild slot    matches anything                  the player's work, never blocked
+//   up & down    ordinary card, moving rank        the player's work, but not plannable
+//   double       ordinary card, two ranks          the player's work, easier to hit
+//
+// A director blind to the first two chases a goal too high on a draw budget too low, so it
+// drives runs harder than the board needs. That is the shape of the original complaint about
+// clearing the deck in sequence: the pressure was real, and partly self-inflicted.
+function oLedger(){
+  let free=0, grants=0, wilds=0, moving=0, keys=0, locks=0;
+  // A plus tile fires the moment its last blocker goes, so on any line that clears the board
+  // every unfired tile WILL fire. Its clear is free and its cards WILL arrive.
+  for(const key in PLUS){const i=+key;
+    if(!cl.has(i)){free++;grants+=plusValue(i);}}
+  for(let i=0;i<N;i++){
+    if(cl.has(i)||isPlusCard(i))continue;
+    if(isKeySlot(i))keys++;
+    else if(isLockSlot(i))locks++;
+    else if(isWildSlot(i))wilds++;
+    else if(isUDSlot(i)&&expo(i))moving++;}
+  // A lock or key leaves only as half of a pair, so only min(keys,locks) pairs can ever
+  // complete - two tiles each, for one tap and no draw. A surplus half is neither free nor
+  // the player's work; it is counted separately because it changes nothing but still sits
+  // on the board blocking whatever is under it.
+  const pairs=Math.min(keys,locks);
+  free+=2*pairs;
+  return {free:free, grants:grants, wilds:wilds, moving:moving,
+          pairs:pairs, orphans:(keys+locks)-2*pairs};
+}
+// Cards the PLAYER has to match from here. Anything that leaves the board without a match
+// is not the player's work, and counting it made the director demand runs the board never
+// needed - three too many on L12, before lock and key existed to add more.
+function dGoal(){
+  const L=oLedger();
+  return (N-cl.size)-L.free-(LV.tgt.win?0:LV.tv);
+}
 function dRunLen(){
-  const goal=dGoal(), C=(LV.deckLen-di)-(LV.tgt.win?LV.tv:0);
+  const L=oLedger();
+  // Pending grants are draws the director is about to be given. Leaving them out made it
+  // ration a budget larger than it thought, which is the same error as the goal, inverted.
+  const goal=dGoal(), C=(LV.deckLen-di+L.grants)-(LV.tgt.win?LV.tv:0);
   if(goal<=0)return 0;            // enough cleared already: stall from here
   if(C<=0)return goal;            // no draws left to burn: clear the rest in one sweep
   return Math.max(1,Math.min(16,Math.ceil(goal/(C+1))));
@@ -1625,7 +1670,11 @@ function dReveal(newly){
   // lead with the card that opens the most: a chain that keeps revealing keeps running
   newly=newly.slice().sort(function(a,b){return dChildren(b)-dChildren(a);});
   // survival guard: if the board is large against the draws left, never cut a chain short
-  const leftNow=N-cl.size, drawsNow=LV.deckLen-di;
+  // Same correction as dGoal/dRunLen: the guard was comparing every remaining tile against
+  // a draw budget that ignored pending grants, so it declared an emergency on boards that
+  // were about to clear themselves and be paid for it.
+  const oL=oLedger();
+  const leftNow=(N-cl.size)-oL.free, drawsNow=(LV.deckLen-di)+oL.grants;
   if(LV.tgt.win&&leftNow>drawsNow*1.6)RUNLEFT=Math.max(RUNLEFT,newly.length+2);
   if(!LV.tgt.win&&dGoal()<=0)RUNLEFT=0;
   // chain the revealed cards to each other, not just to the waste. otherwise a run
@@ -1950,7 +1999,14 @@ function build(){
   // carrying either, the prover would be proving a game nobody plays. That is exactly the
   // defect already recorded for plus tiles. Until exh() models them, decline: a level with
   // no proof makes no promise, which is strictly better than a promise that is not true.
-  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0||UDN>0);
+  // Every obstacle level takes the live plan, plus tiles included. exh() and allHit() test
+  // legality with a bare cyc(rank[i],w) instead of slotTakes(), so the prover's copy of the
+  // matching rule knows about none of these: it thinks a plus tile is an ordinary card the
+  // player spends a match on, a wild is never playable, a double has one rank, and a lock is
+  // a permanent blocker. On a plus level that is not a weaker proof, it is a proof about a
+  // different game - ISSUE-011 - and a false proof is exactly the failure this project's
+  // headline number exists to catch. Steering honestly beats proving the wrong thing.
+  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0||UDN>0||PLUSTILES>0);
   const plan=(FORCELIVE||bends)?FORCEPLAN:((known&&known.d==='L')?LIVEPLAN:PLAN);
   BUILDING={tgt:tgt,vals:vals,deadv:deadv,out:null,sd:0,usedMode:0,stage:0,plan:plan,cached:!!known};
   setBusy(plan[0].msg);
