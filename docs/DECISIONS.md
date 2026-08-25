@@ -172,3 +172,33 @@ Impact: `liveBand()`; the panel and the detector now read the authored band. Rep
 accuracy will fall by roughly nineteen points with no change in behaviour — that is the
 correction, not a regression. `reg.js` reports both figures so the two are never confused
 again.
+
+---
+
+**D-012 — Visual language for the Wild and Double Value obstacles**
+Status: APPROVED · Version: 1.1.1+ · Relates: D-005
+
+Decision: a map **Wild** wears the same face as the in-game `USE WILD` control — `#fffbeb`
+on a `#f2ce6a` edge with `#b8790a` type — carrying a drawn five-point star and the caption
+`WILD`. A **Double Value** card keeps the ordinary white card face and renders at 1.35×.
+
+Reason. The wild card on the board and the wild button beside it are the same object to a
+player, so they should not be two designs; D-005 had already assigned amber to the wild and
+an earlier indigo attempt contradicted it. The star is drawn as inline SVG rather than set
+as a glyph for three reasons: it takes `currentColor`, so it deepens with the card when the
+card becomes playable; no font on another machine can substitute it; and it stays crisp at
+the 18px it is drawn at on a dense board. The `♛` it replaces is the Unicode chess queen,
+which reads as a game piece rather than as royalty.
+
+A playable wild does **not** take the blue `.pc.pl` ring every other card takes. Blue is the
+director's colour in this palette, and the wild is the one card whose entire identity is
+that it always plays — so it deepens in its own colour instead, saying the same thing
+louder rather than something different.
+
+The 1.35× on a double is not decoration: it is how a player identifies the card without
+reading it, and the same 0.175 half-overhang is what the shipping build subtracts from the
+scroll clamp so a double reaches the curtain slightly sooner than its neighbours.
+
+Impact: `.wildc`, `.wildb`, `.wgold`, `.pc.wildc.pl` in CSS; the wild and double branches in
+`render()`; the legal-move button list. The double **face** is still undecided — the current
+slashed `Q/J` stands until it is.

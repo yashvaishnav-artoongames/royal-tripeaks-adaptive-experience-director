@@ -367,9 +367,11 @@ td.v{font-weight:500;}
 .pc.wildc.clk:hover{background:#fde9a9;}
 .pc.wildc.pl .wildb .wv,.pc.wildc.pl .wildb .wl{color:#92610a;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;}
-.wildb .wv{font-weight:800;color:#b8790a;font-size:1.2em;}
+.wildb .wv{width:1.45em;height:1.38em;display:block;fill:currentColor;color:#b8790a;}
 .wildb .wl{font-size:9px;font-weight:800;letter-spacing:.3px;color:#b8790a;margin-top:2px;}
-.wgold .rk{color:#b8790a;} .wgold .sy{color:#b8790a;font-size:9px;font-weight:800;letter-spacing:.3px;}
+.wgold{display:inline-flex;align-items:center;gap:4px;color:#b8790a;}
+.wgold .wbtn{width:13px;height:12px;fill:currentColor;}
+.wgold .sy{color:#b8790a;font-size:9px;font-weight:800;letter-spacing:.3px;}
 .dblc{border-color:#a16207;box-shadow:inset 0 0 0 2px #fde68a;}
 .dblc .rk{letter-spacing:-.04em;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
@@ -3634,7 +3636,7 @@ function render(){
         (small?'':'<span class="pl">PLUS<br>CARD</span>')+'</span>';
       cls+=' plusc';}
     else if(isWildSlot(i)){
-      body='<span class="wildb"><span class="wv">♛</span>'+
+      body='<span class="wildb"><svg class=\"wv\" viewBox=\"0 0 20 19\" aria-hidden=\"true\"><path d=\"M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z\"/></svg>'+
         (CW<46?'':'<span class="wl">WILD</span>')+'</span>';
       cls+=' wildc';
       if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
@@ -3720,7 +3722,9 @@ function render(){
         // the one card that always plays, so the button says that instead of a rank.
         const L0=LV.LB[i];
         const inner=isWildSlot(i)
-          ?'<span class="wgold"><span class="rk">♛</span><span class="sy">WILD</span></span>'
+          ?'<span class="wgold"><svg class="wbtn" viewBox="0 0 20 19" aria-hidden="true">'+
+            '<path d="M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z"/>'+
+            '</svg><span class="sy">WILD</span></span>'
           :('<span'+(L0&&L0[2]?' class="red"':'')+'><span class="rk">'+(L0?L0[0]:'?')+
             '</span><span class="sy">'+(L0?L0[1]:'')+'</span></span>');
         return '<button onclick="play('+i+')">'+inner+
