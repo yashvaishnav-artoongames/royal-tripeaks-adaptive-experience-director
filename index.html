@@ -37,6 +37,20 @@ button{font-family:inherit;font-size:11.5px;font-weight:600;padding:8px 16px;bor
   border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;cursor:pointer;white-space:nowrap;}
 button:hover:not(:disabled){background:#f8f9fc;}
 button:disabled{opacity:.35;cursor:default;}
+/* The colour dial. The track runs red to black through neutral, so the control shows what
+   it does before the number is read - dragging left is dragging toward red. */
+.mixctl{display:inline-flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600;
+  padding:6px 14px;border-radius:18px;border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;}
+.mixctl .mixlab{color:#6b7280;}
+.mixctl .mixval{min-width:58px;text-align:right;font-variant-numeric:tabular-nums;}
+.mixctl input[type=range]{-webkit-appearance:none;appearance:none;width:94px;height:4px;
+  border-radius:2px;outline:none;cursor:pointer;
+  background:linear-gradient(90deg,#dc2626 0%,#e8eaed 50%,#1a1d23 100%);}
+.mixctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid #3b5bdb;
+  cursor:pointer;}
+.mixctl input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;
+  background:#fff;border:2px solid #3b5bdb;cursor:pointer;}
 button.pri{background:#3b5bdb;border-color:#3b5bdb;color:#fff;}
 button.pri:hover{background:#2f4ac5;}
 button.gold{background:#fffbeb;border-color:#fcd34d;color:#d97706;}
@@ -497,21 +511,23 @@ td.v{font-weight:500;}
   <div class="ctlbar">
     <select id="lsel"></select>
     <select id="tsel"></select>
-    <select id="csel" title="Colour mix - the share of cards the director deals black. The streak meter pays a bonus for five cards of ONE colour, so this decides how often that bonus can fire at all. Applied on the next Generate, like the outcome beside it.">
-      <option value="0">Suits: all red</option>
-      <option value="0.25">Suits: 25% black</option>
-      <option value="0.5" selected>Suits: 50/50</option>
-      <option value="0.75">Suits: 75% black</option>
-      <option value="1">Suits: all black</option>
-    </select>
+    <span class="mixctl" title="Colour mix - the share of cards the director deals black. The streak meter pays a bonus for five cards of ONE colour, so this decides how often that bonus can fire at all. Applied on the next Generate, like the outcome beside it.">
+      <span class="mixlab">Suits</span>
+      <input type="range" id="csel" min="0" max="100" step="5" value="50"
+             oninput="mixSlide(this.value)" aria-label="Colour mix, percent black">
+      <span class="mixval" id="cselv">50 / 50</span>
+    </span>
     <button class="pri" onclick="build()">Generate level</button>
     <button id="flbtn" onclick="toggleForceLive()">Director: auto</button>
     <button onclick="pickFolder()">Load levels…</button>
     <input type="file" id="filein" accept=".json,application/json" multiple webkitdirectory
            style="display:none" onchange="ingest([].slice.call(this.files))">
-    <button onclick="validateAll()">Validate all…</button>
-    <button onclick="botStart()">Run bot…</button>
-    <button onclick="ecSweepStart()">Rescue sweep…</button>
+    <!-- Hidden, not deleted. All three still work and their panels still render; they are
+         batch tools that crowd a bar meant for one level at a time. Drop the style to get
+         them back, or call validateAll() / botStart() / ecSweepStart() from the console. -->
+    <button onclick="validateAll()" style="display:none">Validate all…</button>
+    <button onclick="botStart()" style="display:none">Run bot…</button>
+    <button onclick="ecSweepStart()" style="display:none">Rescue sweep…</button>
     <span class="loadmsg" id="loadmsg"></span>
     <span class="seedtxt" id="sd"></span>
   </div>
@@ -723,6 +739,14 @@ const dblFilter=(i,arr)=>isDblSlot(i)?arr.filter(dblRoot):arr;
 // the mix before: suits fell out of a fixed per-rank rotation that happened to average even.
 let BLACKP=0.5;
 const BLACKSU=[0,3], REDSU=[1,2];   // indices into SU - spade and club black, heart and diamond red
+// The readout says what the mix IS, not what the slider reads: 0 and 100 are absolutes and
+// deserve to be named, and an even split is worth calling even rather than '50% black'.
+function mixText(pct){
+  const p=Math.round(pct);
+  return p===0?'all red':p===100?'all black':p===50?'50 / 50':(p+'% black');}
+function mixSlide(v){
+  const e=document.getElementById('cselv');
+  if(e)e.textContent=mixText(+v);}
 function setColorMix(p){
   const v=Number(p);
   BLACKP=(isFinite(v)?Math.max(0,Math.min(1,v)):0.5);
@@ -1819,7 +1843,7 @@ function build(){
   // Read at build time rather than on change, exactly like the outcome select beside it.
   // A colour mix can only show up in cards that have not been dealt yet, so applying it at
   // any other moment would claim an effect the board does not have.
-  const cs=document.getElementById('csel');if(cs)setColorMix(cs.value);
+  const cs=document.getElementById('csel');if(cs)setColorMix((+cs.value)/100);
   const tgt=OUT[+document.getElementById('tsel').value];
   document.getElementById('bsub').textContent=L.short;
   document.getElementById('movetag').textContent='Move 0';
