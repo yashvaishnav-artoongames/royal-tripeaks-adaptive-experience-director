@@ -516,7 +516,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.3.0';
+const APP_VERSION='1.2.0';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -1287,19 +1287,9 @@ function clearVData(){VDATA={};saveVData();
 // only ever reached when tiers 0-3 have all failed on this level.
 // the live director cannot hit an exact number, so a live level is given a band
 // widened one step either side of the chosen outcome. tight targets stay tight.
-// The band a live level advertises. It used to widen the authored one by 1 in each
-// direction, on the reasoning that steering cannot hit a number as tightly as a proof can.
-// That is true and it is not a licence to move the promise: RULE-007 and D-004 say the band
-// IS the outcome, and a Close Lose that lands on 2 stranded cards is not a Close Lose.
-//
-// The widening never touched steering - bandOf() reads the authored tgt.lo/hi, so retarget(),
-// bandOrder() and the reband rung were always working to the real band. It reached only
-// LV.band, which is the panel, the in-page bot's scoring and the reachability detector. So
-// its whole effect was to flatter the report: measured over 121 pairs, live scored 76%
-// "in band" against the widened figure and 57% against the promise. Nineteen points of
-// self-marking. Same runs, same director, honest denominator.
 function liveBand(tgt){
-  return [tgt.lo,tgt.hi];
+  const lo=Math.max(tgt.win?0:1,tgt.lo-1), hi=tgt.hi+1;
+  return [lo,hi];
 }
 function genLive(tgt,tv){
   const pool={},usd={};ALL.forEach(function(r){pool[r]=SUP;usd[r]=0;});
@@ -1337,17 +1327,7 @@ function dBind(i,r){LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r);}
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
 // tv cards must be left standing, so they are not part of the goal.
-// How many cards the player still has to clear from here. Plus tiles clear themselves, so
-// they were never cards the player has to match - and N counts them, so on L12 the live
-// director was chasing a number three too high for the whole round.
-//
-// Corrected for wins only, deliberately: on a win every tile fires, so the matchable count
-// is exact. On a lose the tv slots left standing may themselves include a still-covered
-// tile, and which ones is not knowable from a count - so the old figure stands there. That
-// asymmetry is ISSUE-005 and it wants the verifier fix, not a guess here.
-function dGoal(){
-  return LV.tgt.win?((N-cl.size)-tilesLeft()):((N-cl.size)-LV.tv);
-}
+function dGoal(){return (N-cl.size)-(LV.tgt.win?0:LV.tv);}
 function dRunLen(){
   const goal=dGoal(), C=(LV.deckLen-di)-(LV.tgt.win?LV.tv:0);
   if(goal<=0)return 0;            // enough cleared already: stall from here
@@ -1357,12 +1337,6 @@ function dRunLen(){
 // bind cards that just turned face up
 function dChildren(i){let c=0;for(let y=0;y<N;y++)if((DEP[y]||[]).indexOf(i)>=0)c++;return c;}
 function dReveal(newly){
-  // A plus tile needs no rank - it is never a match target, and it fires the moment it is
-  // uncovered. Binding one spent a card out of the live pool for a slot the player can
-  // never play, three times over on L12. Filtered here rather than at the three call sites
-  // so no future caller can reintroduce it. render() paints tiles from their own branch and
-  // never reads LB for them, so leaving them unbound is safe.
-  newly=newly.filter(function(z){return !isPlusCard(z);});
   if(!newly.length)return;
   // lead with the card that opens the most: a chain that keeps revealing keeps running
   newly=newly.slice().sort(function(a,b){return dChildren(b)-dChildren(a);});
@@ -1411,32 +1385,6 @@ function dDraw(){
 
 function popc(x){x=x-((x>>1)&0x55555555);x=(x&0x33333333)+((x>>2)&0x33333333);
   x=(x+(x>>4))&0x0f0f0f0f;return (x*0x01010101)>>24&0x3f;}
-// ISSUE-011. legals() refuses a plus tile as a match target and RULE-002 says so, but the
-// verifier's own legality loops had no such guard - so exh() and allHit() explored lines in
-// which the player PLAYS a tile, spending a match on it and taking its rank onto the waste.
-// On any level carrying tiles the proof described a different game from the one dealt.
-//
-// Removing the guard alone is not enough: a tile the player cannot play could then never be
-// cleared, so the all-cleared win state would be unreachable and every plus win level would
-// stop proving. A tile clears ITSELF the moment its last blocker goes, so the cleared set has
-// to close over the tiles - which is exactly plusSweep()'s rule, expressed on the mask.
-//
-// Mask-pure and idempotent, so no memo-key field changes and no state is added. Returns
-// immediately on the 24 levels with no tiles.
-function plusClose(mlo,mhi){
-  if(!PLUSTILES)return [mlo,mhi];
-  for(;;){
-    let ch=false;
-    for(const pk in PLUS){
-      const t=+pk;
-      if(t<26?((mlo>>>t)&1):((mhi>>>(t-26))&1))continue;      // already cleared
-      if((mlo&PMLO[t])!==PMLO[t]||(mhi&PMHI[t])!==PMHI[t])continue;  // still blocked
-      if(t<26)mlo|=1<<t;else mhi|=1<<(t-26);
-      ch=true;
-    }
-    if(!ch)return [mlo,mhi];
-  }
-}
 function exh(rank,deck,seed,win,tv,needPay){
   const memo=new Map();let cap=0,states=0,bad=false,fk=0;
   const DJR=deck.length+2;   // draw index: 0 .. deck.length, from THIS deck
@@ -1461,7 +1409,6 @@ function exh(rank,deck,seed,win,tv,needPay){
       const Sv=SCROLL?scrollOf(function(z){return !!(z<26?((mlo>>>z)&1):((mhi>>>(z-26))&1));}):0;
       for(let i=0;i<N;i++){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
-        if(isPlusCard(i))continue;                  // RULE-002, same as legals()
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
         if(cyc(rank[i],w))lg.push(i);
@@ -1470,8 +1417,7 @@ function exh(rank,deck,seed,win,tv,needPay){
         if(lg.length>1)fk++;
         const nm=(mt+1)%PIPS,ad=nm===0?1:0;let dm=99,pm=99;
         for(const i of lg){
-          let nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          const cz=plusClose(nlo,nhi);nlo=cz[0];nhi=cz[1];   // tiles this match uncovered
+          const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
           const r=f(nlo,nhi,rank[i],dj,nm);
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p+ad);}
@@ -1484,60 +1430,12 @@ function exh(rank,deck,seed,win,tv,needPay){
         if(win||N-c!==tv){bad=true;return null;}
         res={d:0,p:0};}}
     inner.set(key,res);states++;return res;}
-  // reset() sweeps at the deal, so a tile with no blockers is already gone before move one.
-  const rt=plusClose(0,0);
-  const r=f(rt[0],rt[1],seed,0,0);
+  const r=f(0,0,seed,0,0);
   if(bad||!r)return null;
   if(deck.length>0&&r.d<1)return null;
   if(needPay&&r.p<1)return null;
   if(!win&&fk<1)return null;
   return {minDen:r.d,minPay:r.p,states:states,forks:fk};
-}
-// Why the last allHit calls failed. Reset per build; read by the proof panel and harnesses.
-let HITFAIL={miss:0,cap:0,unsound:0};
-// ==== IS THE OUTCOME STILL REACHABLE? =========================================
-// The director had no way to notice it had already lost. A Close Lose asking for 3-5
-// stranded cards would walk the board down to 1 card left with a playable match on the
-// waste - one tap from clearing a level authored to lose - and the panel went on saying
-// "aiming at 4, corrected as you play" with 0 re-plans. Nothing was wrong with any single
-// decision; nothing was watching the arithmetic.
-//
-// Pure counting, no search: this runs on every paint and must not touch a Date.now budget
-// that the recovery ladder is spending. Deliberately CONSERVATIVE - it reports lost only
-// when no play and no grant can reach the band, so a false alarm is not possible even if
-// that means missing some genuinely dead boards.
-// Plus tiles still on the board. They clear themselves, so they are never cards the player
-// has to match - but they do occupy slots, so N counts them and most arithmetic over-counts.
-function tilesLeft(){
-  let n=0;
-  if(typeof PLUS!=='undefined'&&PLUS)for(const k2 in PLUS)if(!cl.has(+k2))n++;
-  return n;
-}
-function growthLeft(){
-  let g=0;
-  if(typeof PLUS!=='undefined'&&PLUS)              // tiles that have not fired yet
-    for(const k2 in PLUS)if(!cl.has(+k2))g+=PLUS[k2];
-  const R=(typeof STREAK_REWARD!=='undefined')?STREAK_REWARD:null;
-  if(R&&R.type==='ExtraCards')                      // streak headroom still unspent
-    g+=Math.max(0,R.maxExtraCardsPerLevel-STREAK_GRANTED);
-  if(R&&R.type==='WildCard')
-    g+=Math.max(0,R.maxRewardsPerLevel-STREAK_REWARDS);
-  return g;
-}
-function contractState(left,dkn){
-  if(!LV||!LV.tgt)return {lost:false,why:''};
-  const bd=LV.band?LV.band:[LV.tv,LV.tv];
-  if(LV.tgt.win){
-    // draws unused at the win can never exceed what is left plus what may still arrive
-    const ceiling=dkn+growthLeft();
-    if(left>0&&ceiling<bd[0])
-      return {lost:true,why:'at most '+ceiling+' can be left unused, band needs '+bd[0]};
-  }else{
-    // stranded cards can never exceed the cards still on the board
-    if(left<bd[0])
-      return {lost:true,why:'only '+left+' card'+(left===1?'':'s')+' left, band needs '+bd[0]};
-  }
-  return {lost:false,why:''};
 }
 function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
   const memo=new Map();let cap=0,unsound=false;
@@ -1556,28 +1454,18 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
       const Sv=SCROLL?scrollOf(function(z){return !!(z<26?((mlo>>>z)&1):((mhi>>>(z-26))&1));}):0;
       for(let i=0;i<N;i++){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
-        if(isPlusCard(i))continue;                  // ISSUE-011, as in exh() and legals()
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
         if(cyc(rank[i],w))lg.push(i);
       }
       if(lg.length){ok=true;
         for(const i of lg){
-          let nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          const cz=plusClose(nlo,nhi);nlo=cz[0];nhi=cz[1];
+          const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
           if(!f(nlo,nhi,rank[i],dj)){ok=false;break;}}}
       else if(dj<deck.length)ok=f(mlo,mhi,deck[dj][1],dj+1);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
-  // ISSUE-012. false meant three different things and the caller could not tell them apart:
-  // a line genuinely misses, the 90,000-state budget ran out, or a memo-key field overflowed
-  // its radix. `unsound` was set and never read. Still one return value - every rung has to
-  // try something else either way - but the reason is now counted, so "this level cannot be
-  // proved" stops being indistinguishable from "the search gave up".
-  const rt=plusClose(m0lo,m0hi);
-  const ok=f(rt[0],rt[1],w0,d0);
-  if(!ok){if(unsound)HITFAIL.unsound++;else if(cap>90000)HITFAIL.cap++;else HITFAIL.miss++;}
-  return ok;
+  return f(m0lo,m0hi,w0,d0);
 }
 let LV=null,cl,wl,wr,di,k,log,beat,act,note,stack,wild,wx,py,dk,miss,rep,health,RUNLEFT=0,replans=0;
 const TG={lines:true,count:true,fade:true,reveal:false};
@@ -2028,15 +1916,7 @@ function miss1(){if(!legals().length){draw();return;}
   log.push({t:'m',s:d[0]});act='Draw anyway \u2014 mistake '+miss;beat='Mistake';
   if(ecInRescue())note='Burned a rescue card. The rescue director keeps the shape it promised.';
   else if(LV.live)note='Burned a draw. The director rebinds what has not been seen yet.';
-  else{let r=reDirect();
-    // A voluntary draw is the one move exh() never modelled: it recurses into a draw only
-    // when nothing is playable, so this line is outside the proof. reDirect re-proves the
-    // SAME target, which is right when the draw cost nothing - but a spent draw cannot be
-    // un-spent, and on a win target the best number still reachable is one lower. The
-    // ladder already walks tv inside its band for a deck that GREW; this is the same move
-    // with the opposite sign, and without it a wasted draw drops the level to live steering
-    // when a perfectly good Close Win one number down was available.
-    if(r==='live'){const v=absorbWastedDraw();if(v!==null){LV.liveDeck=false;r='reband';}}
+  else{const r=reDirect();
     note='Burned a draw with a playable card on the board. '+REDIRECT_NOTE[r];}
   health=LV.liveDeck?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
   render();}
@@ -2145,25 +2025,6 @@ function reDirect(){
       return 'reshaped';}
   }
   LV.liveDeck=true;return 'live';
-}
-// ISSUE-015. A win target is "exactly N draws unused", so a draw the plan did not budget
-// costs exactly one: the best value still reachable is N-1. Walk down inside the band and
-// re-prove, nearest first. Only wins - a lose target counts stranded tableau cards, which a
-// draw does not touch, and Last Card Win has a band of width zero and can absorb nothing.
-//
-// Proving against unlimited voluntary draws is impossible, not merely hard: a player who
-// empties the deck forces 0 unused whatever the card values are. This absorbs up to the
-// width of the band, which is where real players sit.
-function absorbWastedDraw(){
-  if(!LV||LV.live||!LV.tgt||!LV.tgt.win)return null;
-  const bd=bandOf(), wilds=countWilds(dk);
-  for(let v=LV.tv-1;v>=bd[0];v--){
-    const d=proveFrom(v,200);
-    if(d){dk=d;LV.deck=d.slice();LV.tv=v;LV.band=bd;replans++;
-      preserveWilds(wilds);
-      return v;}
-  }
-  return null;
 }
 
 
@@ -2489,12 +2350,7 @@ function addExtraCards(n,source){
     }
     LV.deck=dk.slice();
   }
-  // ISSUE-013. `added.length||n` read a count of ZERO as "absent" and fell back to n, so a
-  // grant that ran out of rank supply and added nothing still moved the target by n. The
-  // live branch legitimately has an empty `added` - it mints on demand and only the count
-  // moves - so the fallback belongs to that branch alone, not to the failure case.
-  const amount=(LV.live||LV.liveDeck)?n:added.length;
-  if(amount<=0)return null;                    // nothing was granted; nothing to absorb
+  const amount=added.length||n;
   const evt={rewardType:'ExtraCards',amount:amount,source:source||'Other',
     deckBefore:before,deckAfter:before+amount,
     insertionIndex:added.length?added[0].at:-1,specialCardType:'None',
@@ -2595,18 +2451,6 @@ function stkPending(){
           R.type==='ExtraCards'?('+'+amt+' card'+(amt===1?'':'s')):
           ('+'+amt+' wild')};
 }
-// How many more granted cards this level's outcome can still absorb. Only the verified
-// director has a target that moves, and only a win target counts draws unused - a lose target
-// counts stranded tableau cards, which extra draws threaten in a way no cap here can fix
-// (that is ISSUE-005, and it wants the verifier). Live steering has no committed plan to
-// protect, so it is unconstrained.
-function bandRoom(){
-  if(!LV||!LV.tgt)return 99;
-  if(LV.live||LV.liveDeck)return 99;
-  if(!LV.tgt.win)return 99;
-  const bd=(typeof bandOf==='function')?bandOf():[LV.tgt.lo,LV.tgt.hi];
-  return Math.max(0,bd[1]-LV.tv);
-}
 function stkMultiplier(){
   return (STK.same&&STK.color!==null)?STREAK_REWARD.sameColorMultiplier:1;
 }
@@ -2630,19 +2474,8 @@ function streakComplete(){
     amount=base*mult;
   }
   if(type==='ExtraCards'){
-    // ISSUE-002. The loop guard was the only cap, and at 6 cards it is far wider than any
-    // band: Comfortable Win permits 4-6 draws unused, so it can absorb two extra cards and
-    // no more. Measured mechanism - retarget() follows the deck only while the new value
-    // stays inside [lo,hi]; once tv is pinned at the ceiling every further granted card is a
-    // straight +1 on the final value and NO rung can give it back, because reband may only
-    // move within the band. The level then lands outside the outcome it promised, or drops to
-    // live steering trying not to.
-    //
-    // So the band is the cap. Beyond it the reward pays its configured fallback, which is the
-    // pathway the streak spec already uses when a loop guard is reached - the player is still
-    // paid, in a currency that does not touch the deck. RULE-007: the band is the promise.
     const room=Math.max(0,R.maxExtraCardsPerLevel-STREAK_GRANTED);
-    amount=Math.min(amount,room,bandRoom());
+    amount=Math.min(amount,room);
     if(amount<=0){type=R.fallbackType;amount=R.fallbackAmount;}
   }
 
@@ -2686,9 +2519,6 @@ const REDIRECT_NOTE={
             'and re-proved the target from this position.',
   reshaped:'Off the planned line, so the director re-dealt everything you have not seen '+
            '\u2014 the face-down cards and the rest of the deck \u2014 and re-proved the target.',
-  reband:'That draw was not in the plan and cannot be taken back, so the target stepped '+
-         'down one inside its band and was re-proved against that. Same outcome, one '+
-         'number tighter.',
   live:'Off the planned line, and nothing the director can still change proves the target '+
        'from here, so it steers the rest live.'};
 // ==== EXTRA CARD EXPERIENCE DIRECTOR =========================================
@@ -3725,16 +3555,9 @@ function render(){
   const won=left===0,lost=!won&&dkn===0&&lg.length===0&&!wild,mt=k%PIPS;
   const den=!won&&!lost&&!wild&&lg.length===0&&mt===PIPS-1&&left>0;
   const AV=avail();
-  const CS=contractState(left,dkn);
   document.getElementById('kpis').innerHTML=
-    kpi(CS.lost?'#dc2626':'#3b5bdb','TAB','Cards left',left,
-      CS.lost?('<b>outcome lost</b> \u2014 '+CS.why):(left+' of '+N))+
-    // The band means DRAWS UNUSED on a win and STRANDED TABLEAU CARDS on a lose. This tile
-    // said "unused" either way, so on every lose level it pinned the strand-count band onto
-    // the deck pile - the exact confusion D-004 exists to prevent.
-    kpi('#7c3aed','DCK','Deck left',dkn,
-      (LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]):('target '+LV.tv))+
-      (LV.tgt.win?' unused':' unreachable'))+
+    kpi('#3b5bdb','TAB','Cards left',left,left+' of '+N)+
+    kpi('#7c3aed','DCK','Deck left',dkn,LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]+' unused'):('target '+LV.tv+' unused'))+
     kpi('#059669','STK','Streak',k,mt+' of '+PIPS+' on meter')+
     kpi('#f59e0b','PAY','Payouts',py,'floor \u2265'+LV.ver.minPay)+
     kpi('#dc2626','ERR','Off-plan',miss+wx,replans+' re-plan'+(replans===1?'':'s'))+
