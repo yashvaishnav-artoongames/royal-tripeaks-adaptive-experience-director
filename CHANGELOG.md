@@ -1,5 +1,94 @@
 # Changelog
 
+## 1.4.0 — 2026-08-25
+
+Two new obstacles, a colour-mix dial, and a rebuilt KPI panel. Also the release that
+reconciles the changelog with the code: **1.2.0 and 1.3.0 are not in this build** — see the
+note at the end.
+
+### Added
+- **Lock & Key** (D-013). A two-tile pair that clears itself when the player taps the key.
+  Never matched against the head card, costs no deck card, and gates whatever sits under it.
+  Modelled rankless — out of `SUP` like wild slots, out of `MATCHN` like plus tiles — and the
+  partner search reproduces shipping's behaviour rather than the layout's intent: a tapped key
+  takes the lowest-index eligible lock, which on multi-pair levels is not the nearest one for
+  48% of keys. A pair collect clears the whole undo history, as shipping does, and counts as an
+  available move so the demo cannot call a loss while a free two-card clear is in hand.
+- **Up & Down** (D-014). An ordinary matchable card whose rank steps by one on every completed
+  move — a match, a draw, a burnt draw, or spending a wild — on the closed thirteen-rank ring.
+  Covered tiles are frozen, so a tile's clock starts when it is *revealed* and two tiles of the
+  same direction drift apart permanently. The eligible set is captured before the move uncovers
+  anything, because a tile revealed by this move does not step on it. `LV.pool` follows the
+  face, so the live director's supply model stays truthful as the tiles walk.
+- **Colour mix** (D-015). `BLACKP` sets the share of cards dealt black; slider in the toolbar,
+  `setColorMix(p)` from the console. An economy dial, not decoration — the streak meter pays a
+  bonus for five cards of one colour, so the mix decides how often that bonus can fire.
+  **Hashed, not rolled**: `famBlack()` hashes rank, copy index and `RSEED`, which is read and
+  never advanced, so colours vary between deals while every level still builds bit-identically.
+  Measured 0.0 / 25.0 / 50.0 / 74.9 / 100.0 per cent black at 0 / .25 / .5 / .75 / 1.
+- **KPI panel rebuilt** — CARD, DECK, PLAN, STREAK, MISTAKE, EXTRA CARDS. Two new run
+  statistics: `CHAINMAX` (longest run of matches between draws) and `DENIALS`, which needed
+  edge-detection because the denial condition existed only as a per-paint state. Both ride the
+  undo snapshot. Off-plan and Forks leave the grid for the Level plan panel.
+- **`FishCards`** and **`IncrementalCards`** importers, with the role inversion pinned
+  (Value 1 is the KEY, Value 2 the LOCK) and warnings for an unbalanced level, an out-of-enum
+  value, and a pair that blocks its own partner.
+- **L7** and **L41** as built-in levels; built-ins are now L12, L21, L111, L7, L41 — one per
+  obstacle.
+
+### Fixed
+- **Wild slot supply leak.** `reassignUnseen()` dealt a card to every hidden slot including
+  wilds, which have no rank and never read one — the card was unavailable to the deck and to
+  every other hidden slot, and the `pool.length` feasibility check over-demanded by one per
+  hidden wild. `ecReveal()` had no exclusion at all and was leaking on the rescue path.
+- **L111 never dealt a red double.** Suits came from `SU[usd[r]%4]` and `SU[0]` is the spade,
+  while `usd[r]` is 0 for any rank the level has not used — which a double root almost always
+  is. Subsumed by D-015.
+- **Double roots** constrained to J, Q or K on all five paths that assign a rank. Exactly six
+  double cards exist as art; any other root names a card that cannot be dealt.
+- **Playable up/down cards had no highlight.** `.pc.udc` restates background and border and
+  sits later in the sheet than `.pc.pl` at equal specificity, so the blue ring lost the
+  cascade. Third face rule to trip on this; the comment now says so.
+- Wild hover repainted the card face blue — border-only was expressed as an absence rather
+  than a value, so `.pc.pl` and `.pc.clk:hover` kept painting underneath.
+- Double-card ranks drifted sideways from negative `letter-spacing` on a single glyph.
+- Select dropdown arrow inset off the pill radius; one height across the control bar and the
+  board header, which also stops the header twitching when the ×2 badge appears; one type size
+  across the header.
+
+### Changed
+- Every obstacle level takes the **live** plan. `bends` now covers wild, double, lock/key and
+  up/down. The verified prover models none of them, and for up/down it cannot as written — a
+  proof is a statement about fixed ranks, and that obstacle makes rank a function of the move
+  number.
+- Styled dropdown panels for the level and outcome selects, backed by the real `<select>` so
+  every existing `.value` read and write keeps working.
+- Validate all, Run bot and Rescue sweep hidden from the bar; functions and panels untouched.
+
+### Not fixed — and reopened
+`index.html` was reverted to 1.1.1 during this branch, which rolled **1.2.0 and 1.3.0 out of
+the build**. Their changelog entries and the FIXED statuses in `docs/KNOWN_ISSUES.md` describe
+code that is not here. Verified directly against current source:
+
+- **ISSUE-011** — `exh()` and `allHit()` still have no `isPlusCard` guard, and there is no
+  `plusClose()`. L12 is not gated to live, so its "proofs" describe a game in which the player
+  spends matches on plus tiles. VERIFIED.
+- **ISSUE-012** — `allHit()` sets `unsound` twice and never reads it. VERIFIED.
+- **ISSUE-014** — `reset()` restores rank, LB, deck, pool and usd, but not `tv`, `band` or
+  `tgt`. VERIFIED.
+- ISSUE-002, ISSUE-005, ISSUE-013, ISSUE-015 were also fixed in the reverted range. INFERRED
+  from the revert, not re-read line by line.
+
+The version jumps 1.1.1 → 1.4.0 rather than reusing 1.2.0: those numbers were published and
+reusing them would make two different builds share one label. The gap is the record.
+
+### Verification
+Parse checks and targeted arithmetic only. **The harness suites were not run** — a standing
+instruction on this branch — so no suite number in this entry is claimed, and none of the
+obstacle work has been exercised in a browser by the author. Everything above is VERIFIED
+against source or LIVE-confirmed by the user in the demo, never both assumed.
+
+
 ## 1.3.0 — 2026-08-25
 
 Six issues closed. The verified director now has **zero failures** across every pair it

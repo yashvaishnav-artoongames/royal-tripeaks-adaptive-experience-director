@@ -3,6 +3,17 @@
 Confirmed problems only. No speculation. Each was reproduced on the current
 `index.html` on 2026-08-24.
 
+> **Statuses below are stale as of 1.4.0.** `index.html` was reverted to 1.1.1 during
+> the obstacle branch, rolling 1.2.0 and 1.3.0 out of the build. Every entry marked
+> `Fixed: 1.2.0` or `Fixed: 1.3.0` therefore describes code that is **not present** —
+> ISSUE-002, 005, 011, 012, 013, 014 and 015. Re-read against current source and confirmed
+> still broken: **ISSUE-011** (no `isPlusCard` guard in `exh()`/`allHit()`, no `plusClose()`),
+> **ISSUE-012** (`unsound` written twice, never read), **ISSUE-014** (`reset()` does not
+> restore `tv`/`band`/`tgt`). The other four are INFERRED from the revert, not re-read.
+>
+> Entries are left as written rather than edited: the fix happened, then the code carrying
+> it was rolled back. Superseding beats rewriting.
+
 ---
 
 **ISSUE-001 — `verifiedAbsorb()` threw on every REBAND**
