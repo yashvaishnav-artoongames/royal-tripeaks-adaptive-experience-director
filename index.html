@@ -359,6 +359,13 @@ td.v{font-weight:500;}
 /* Same face as the USE WILD control the player already knows - #fffbeb on #f2ce6a with
    #b8790a type - so the card on the board and the button off it read as one thing. */
 .wildc{background:#fffbeb;border:1.5px solid #f2ce6a;}
+/* The playable ring is blue for every ordinary card, which put a blue border on a yellow
+   card and made the wild look like it belonged to the director rather than to itself.
+   A wild keeps its own colour when it lights up - it is the one card whose whole identity
+   is that it always plays, so the highlight should say louder, not different. */
+.pc.wildc.pl{background:#fef3c7;border:2px solid #e0a316;}
+.pc.wildc.clk:hover{background:#fde9a9;}
+.pc.wildc.pl .wildb .wv,.pc.wildc.pl .wildb .wl{color:#92610a;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;}
 .wildb .wv{font-weight:800;color:#b8790a;font-size:1.2em;}
 .wildb .wl{font-size:9px;font-weight:800;letter-spacing:.3px;color:#b8790a;margin-top:2px;}
