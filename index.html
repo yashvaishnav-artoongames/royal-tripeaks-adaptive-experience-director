@@ -131,11 +131,24 @@ body.dragging .dropzone{display:flex;}
   position:relative;overflow:hidden;}
 .kpi::before{content:'';position:absolute;top:-26px;right:-26px;width:68px;height:68px;border-radius:50%;
   background:var(--c);opacity:0.10;}
-.kpi-icon{width:27px;height:27px;border-radius:9px;background:var(--c);display:flex;align-items:center;
-  justify-content:center;font-size:8.5px;color:#fff;margin-bottom:11px;font-weight:700;letter-spacing:-0.2px;}
+/* Sized by its text, not a fixed square: the badges now read CARD, STREAK, EXTRA CARDS -
+   words rather than three-letter codes - and the old 27px box clipped them to their first
+   characters. Aligned from the left like every other line on the card. */
+.kpi-icon{display:inline-flex;align-items:center;justify-content:flex-start;width:auto;
+  height:21px;padding:0 9px;border-radius:8px;background:var(--c);font-size:8.5px;color:#fff;
+  margin-bottom:11px;font-weight:700;letter-spacing:.3px;white-space:nowrap;}
 .kpi-lbl{font-size:10px;color:#6b7280;font-weight:600;margin-bottom:5px;}
 .kpi-val{font-size:24px;font-weight:800;letter-spacing:-1px;line-height:1;font-feature-settings:"tnum";}
 .kpi-sub{font-size:9.5px;font-weight:600;margin-top:7px;color:var(--c);line-height:1.35;}
+/* The one text-valued card in the grid: the target outcome, lifted from the Level plan
+   panel so the number the whole round is being steered toward sits beside the numbers
+   it is steering. */
+.kpi-out{font-size:13.5px;font-weight:800;letter-spacing:-.4px;line-height:1.2;padding-top:4px;}
+.kpi-band{font-size:9.5px;font-weight:700;color:#6b7280;margin-top:5px;font-feature-settings:"tnum";}
+.kpi-dir{display:inline-flex;align-items:center;margin-top:8px;font-size:8.5px;font-weight:700;
+  padding:3px 8px;border-radius:9px;letter-spacing:.2px;}
+.kpi-dir.live{background:#fffbeb;color:#b45309;}
+.kpi-dir.ver{background:#ecfdf5;color:#059669;}
 
 .sec-hdr{display:flex;align-items:center;gap:9px;flex:0 0 auto;margin-top:2px;}
 .sec-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;
@@ -2142,7 +2155,7 @@ function snap(){stack.push({c:Array.from(cl),wl:wl,wr:wr,di:di,k:k,
   llb:LV.LB.slice(),
   lpool:LV.pool?Object.assign({},LV.pool):null,
   lusd:LV.usd?Object.assign({},LV.usd):null,
-  pf:PLUSFIRED.slice(),lk:LKDONE.slice(),
+  pf:PLUSFIRED.slice(),lk:LKDONE.slice(),cm:CHAINMAX,dnl:DENIALS,dnk:DENKEY,
   stk:{n:STK.n,color:STK.color,same:STK.same,
        cards:STK.cards.map(function(c){return Object.assign({},c);})},
   sg:STREAK_GRANTED,sr:STREAK_REWARDS,coins:COINS,
@@ -2169,6 +2182,7 @@ function back(){if(!stack.length)return;
   ECRUNS=s.ecr;ECGRANTED=s.ecg;PHASE=s.ph;
   if(s.pf)PLUSFIRED=s.pf.slice();
   if(s.lk)LKDONE=s.lk.slice();
+  if(s.cm!==undefined){CHAINMAX=s.cm;DENIALS=s.dnl;DENKEY=s.dnk;}
   if(s.stk)STK={n:s.stk.n,color:s.stk.color,same:s.stk.same,cards:s.stk.cards.slice()};
   STREAK_GRANTED=s.sg;STREAK_REWARDS=s.sr;COINS=s.coins;
   render();}
@@ -2188,6 +2202,7 @@ function play(i){snap();const ww=wild;wild=false;
     wl=[L0[0],L0[1],L0[2],isDblSlot(i)?secondOf(LV.rank[i]):0];
     wr=LV.rank[i];}
   k++;
+  if(k>CHAINMAX)CHAINMAX=k;
   // ww is true when this card was played off a wild waste: it keeps the streak but is
   // colour-neutral, so it must not establish or break RED/BLACK.
   // a card played off a wild waste still has its own colour
@@ -2458,6 +2473,12 @@ let PLUSTILES=0;             // how many tiles, i.e. free clears the board gives
 let MATCHN=0;                // board cards the player actually has to match
 let LKTILES=0;               // lock and key tiles on this level, keys plus locks
 let LKDONE=[];               // [key,lock] pairs collected this attempt, in order
+// Run statistics for the KPI panel. CHAINMAX is the longest run of matches between draws -
+// k already counts exactly that, nothing kept its maximum. DENIALS counts streak-denial
+// moments: the meter at 4 of 5 with nothing legal, so the fifth match is withheld and the
+// draw breaks the streak. That condition is recomputed on every paint as a STATE; DENKEY
+// latches the move it was first seen on, so a passive re-render cannot count it twice.
+let CHAINMAX=0, DENIALS=0, DENKEY=-1;
 function isPlusCard(i){return PLUS&&PLUS[i]!==undefined;}
 function plusValue(i){return (PLUS&&PLUS[i])||0;}
 function plusTotal(){let s=0;for(const k in PLUS)s+=PLUS[k];return s;}
@@ -3924,6 +3945,7 @@ function reset(){if(!LV)return;
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];LKDONE=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
+  CHAINMAX=0;DENIALS=0;DENKEY=-1;
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
   LV.liveDeck=false;
   scrollInit();
@@ -3958,14 +3980,40 @@ function render(){
   const rdy=lkReady();
   const won=left===0,lost=!won&&dkn===0&&lg.length===0&&!rdy&&!wild,mt=k%PIPS;
   const den=!won&&!lost&&!wild&&lg.length===0&&!rdy&&mt===PIPS-1&&left>0;
+  // den is a state, recomputed on every paint - it says a denial is happening, not that
+  // one happened. Counting needs the edge into it, once per move: log.length names the
+  // move this paint describes, so a re-render during the same denial cannot recount it,
+  // and undo restores both numbers from the snapshot. LV.ver.minDen is a different thing
+  // entirely - the proved floor over every line, not what this round actually did.
+  if(den&&DENKEY!==log.length){DENIALS++;DENKEY=log.length;}
+  // Dead draws straight off the log - every draw already records whether anything was
+  // legal before it. The longest run ends at any entry that is not itself a dead draw.
+  let deadN=0,deadRun=0,dcur=0;
+  for(const e of log){
+    if(e.t==='d'&&e.dead){deadN++;dcur++;if(dcur>deadRun)deadRun=dcur;}
+    else dcur=0;}
   const AV=avail();
+  // Extra cards by source rather than 'over N grants': the three systems that grant cards
+  // are different facts about the round - a plus tile is authored, a streak reward is
+  // earned, a rescue card means the player was losing - and one number would hide which.
+  const exCards=plusGranted()+STREAK_GRANTED+ECGRANTED;
+  const outBand=(LV.band?(LV.band[0]+'\u2013'+LV.band[1]):('exactly '+LV.tv))+
+    (LV.tgt.win?' draws unused':' cards unreachable');
   document.getElementById('kpis').innerHTML=
-    kpi('#3b5bdb','TAB','Cards left',left,left+' of '+N)+
-    kpi('#7c3aed','DCK','Deck left',dkn,LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]+' unused'):('target '+LV.tv+' unused'))+
-    kpi('#059669','STK','Streak',k,mt+' of '+PIPS+' on meter')+
-    kpi('#f59e0b','PAY','Payouts',py,'floor \u2265'+LV.ver.minPay)+
-    kpi('#dc2626','ERR','Off-plan',miss+wx,replans+' re-plan'+(replans===1?'':'s'))+
-    kpi('#0891b2','FRK','Forks',LV.ver.forks,'all land on '+LV.tv);
+    kpi('#3b5bdb','CARD','Cards left',left,left+' of '+N+' \u00b7 best chain '+CHAINMAX)+
+    kpi('#7c3aed','DECK','Deck left',dkn,
+      (LV.band?('aim '+LV.band[0]+'\u2013'+LV.band[1]+' unused'):('target '+LV.tv+' unused'))+
+      ' \u00b7 '+deadN+' dead draw'+(deadN===1?'':'s'))+
+    '<div class="kpi" style="--c:#0891b2"><div class="kpi-icon">PLAN</div>'+
+      '<div class="kpi-lbl">Target outcome</div>'+
+      '<div class="kpi-out">'+LV.tgt.n+'</div>'+
+      '<div class="kpi-band">'+outBand+'</div>'+
+      '<div class="kpi-dir '+(LV.live?'live':'ver')+'">'+(LV.live?'LIVE DIRECTOR':'VERIFIED')+'</div></div>'+
+    kpi('#059669','STREAK','Streaks made',py,
+      DENIALS+' denial'+(DENIALS===1?'':'s')+' \u00b7 floor \u2265'+LV.ver.minPay)+
+    kpi('#dc2626','MISTAKE','Mistakes',miss,'longest dead run '+deadRun)+
+    kpi('#f59e0b','EXTRA CARDS','Extra cards',exCards,
+      plusGranted()+' plus \u00b7 '+STREAK_GRANTED+' streak \u00b7 '+ECGRANTED+' rescue');
   document.getElementById('bsub').textContent=L.name+' \u00b7 '+ROOTS+' face-up';
   let h='';
   if(TG.lines){
