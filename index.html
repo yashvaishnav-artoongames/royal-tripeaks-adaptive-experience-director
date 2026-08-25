@@ -35,7 +35,35 @@ button:disabled{opacity:.45;cursor:progress;}
    the Suits pill is a flex box wrapping a 4px-tall range input, so its content box comes
    out shorter than the text line box that sets a button's height. align-items:center on
    the bar means nothing stretches to match, so the height has to be stated. */
-.ctlbar select,.ctlbar button,.ctlbar .mixctl{min-height:33px;}
+.ctlbar select,.ctlbar button,.ctlbar .mixctl,.ctlbar .dd .ddbtn{min-height:33px;}
+/* Styled dropdowns. A native option list is drawn by the OS and no CSS reaches it, so a
+   select in this bar wears our pill and then opens a grey system menu with square corners.
+   The real <select> stays in the DOM as the source of truth and is hidden; this is the part
+   the player sees.
+   Every rule below is .dd-scoped rather than bare .ddbtn on purpose: the generic
+   button:hover:not(:disabled) rule sets the background SHORTHAND, which resets
+   background-image to none and would swallow the chevron on hover at a specificity a single
+   class cannot beat. */
+.ddhide{display:none;}
+.dd{position:relative;display:inline-flex;}
+.dd .ddbtn{font-family:inherit;font-size:11.5px;font-weight:500;
+  padding:8px 34px 8px 14px;border-radius:18px;border:1.5px solid #e8eaed;
+  background:#fff;color:#1a1d23;cursor:pointer;text-align:left;white-space:nowrap;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:9px 6px;}
+.dd .ddbtn:hover{background-color:#f8f9fc;}
+.dd.open .ddbtn{border-color:#3b5bdb;background-color:#fff;}
+.dd .ddbtn:focus-visible{outline:none;border-color:#3b5bdb;}
+.ddmenu{position:absolute;top:calc(100% + 6px);left:0;min-width:100%;z-index:2000;
+  background:#fff;border:1.5px solid #e8eaed;border-radius:14px;padding:5px;
+  box-shadow:0 14px 32px rgba(26,29,35,.14),0 2px 6px rgba(26,29,35,.06);
+  max-height:300px;overflow-y:auto;}
+.ddmenu[hidden]{display:none;}
+.ddmenu .ddopt{display:block;width:100%;font-family:inherit;font-size:11.5px;font-weight:500;
+  min-height:0;padding:8px 12px;border:0;border-radius:11px;background:transparent;
+  color:#1a1d23;cursor:pointer;text-align:left;white-space:nowrap;}
+.ddmenu .ddopt:hover{background:#f2f5fb;}
+.ddmenu .ddopt.sel{background:#eef2ff;color:#3b5bdb;font-weight:700;}
 /* The native select arrow is painted at the far edge of the control and ignores
    padding-right, so on an 18px pill it sits in the curve with nowhere to breathe. Turn the
    native appearance off and draw the chevron as a positioned background instead: inset
@@ -118,11 +146,22 @@ body.dragging .dropzone{display:flex;}
   padding:13px 16px 14px;border:1.5px solid #e8eaed;display:flex;flex-direction:column;}
 .board-head{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;
   margin-bottom:10px;flex:0 0 auto;}
+/* One height across the whole header row. Every pill here was sized by its own font plus
+   its own padding, so five different type sizes produced five different heights sitting
+   side by side. The meter was worse than uneven: it took its height from its tallest
+   child, so the row grew by several pixels the moment the x2 badge appeared and shrank
+   again when the streak broke. Its vertical padding is now small enough that the shared
+   height governs in both states, which holds the row still mid-game.
+   inline-flex so the height is real rather than a side effect of the line box, and the
+   padding is left to do only the horizontal. */
+.board-head .lvlpill,.board-head .movetag,.board-head .dirtag,
+.board-head .meter,.board-head .tg{min-height:30px;}
+.lvlpill,.movetag,.dirtag,.tg{display:inline-flex;align-items:center;vertical-align:middle;}
 .lvlpill{display:inline-block;background:#eef2ff;color:#3b5bdb;font-weight:700;font-size:12.5px;
   padding:6px 15px;border-radius:15px;letter-spacing:-.2px;}
 .tgw{display:flex;gap:5px;justify-self:end;flex-wrap:nowrap;}
 .meter{display:flex;align-items:center;gap:8px;background:#f8f9fc;border:1.5px solid #e8eaed;
-  border-radius:22px;padding:6px 13px;flex:0 0 auto;white-space:nowrap;}
+  border-radius:22px;padding:3px 13px;flex:0 0 auto;white-space:nowrap;}
 .mlbl{font-size:8.5px;font-weight:700;color:#9ca3af;letter-spacing:.7px;}
 .pips{display:flex;gap:5px;}
 .pip{width:9px;height:9px;border-radius:50%;background:#e2e5eb;transition:background .15s;
@@ -4289,6 +4328,62 @@ function natsort(a,b){
     if(na&&nb)return Number(na[0])-Number(nb[0]);}
   return a.short<b.short?-1:(a.short>b.short?1:0);
 }
+// ==== STYLED DROPDOWNS ========================================================
+// Wrap a real <select> in markup we can style. The select is never removed and never stops
+// being the source of truth, so every existing read of .value and every write to it keeps
+// working untouched - this is a skin, not a replacement.
+let DDOPEN=null;
+const ddEsc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;');
+function ddSync(sel){
+  const d=sel.__dd;if(!d)return;
+  const cur=sel.value, o=sel.options[sel.selectedIndex];
+  d.lab.textContent=o?o.textContent:'';
+  let html='';
+  for(let i=0;i<sel.options.length;i++){const p=sel.options[i];
+    html+='<button type="button" class="ddopt'+(p.value===cur?' sel':'')+
+      '" data-v="'+ddEsc(p.value)+'">'+ddEsc(p.textContent)+'</button>';}
+  d.menu.innerHTML=html;}
+function ddClose(){
+  if(!DDOPEN)return;
+  DDOPEN.wrap.classList.remove('open');DDOPEN.menu.hidden=true;
+  DDOPEN.btn.setAttribute('aria-expanded','false');DDOPEN=null;}
+function ddOpen(d){
+  ddClose();d.wrap.classList.add('open');d.menu.hidden=false;
+  d.btn.setAttribute('aria-expanded','true');DDOPEN=d;
+  const s=d.menu.querySelector('.ddopt.sel');if(s)s.scrollIntoView({block:'nearest'});}
+function ddInit(id){
+  const sel=document.getElementById(id);if(!sel||sel.__dd)return null;
+  const wrap=document.createElement('div');wrap.className='dd';
+  const btn=document.createElement('button');btn.type='button';btn.className='ddbtn';
+  btn.setAttribute('aria-haspopup','listbox');btn.setAttribute('aria-expanded','false');
+  if(sel.title)btn.title=sel.title;
+  const lab=document.createElement('span');lab.className='ddlab';btn.appendChild(lab);
+  const menu=document.createElement('div');menu.className='ddmenu';menu.hidden=true;
+  menu.setAttribute('role','listbox');
+  wrap.appendChild(btn);wrap.appendChild(menu);
+  sel.parentNode.insertBefore(wrap,sel);sel.classList.add('ddhide');
+  const d={wrap:wrap,btn:btn,lab:lab,menu:menu,sel:sel};sel.__dd=d;
+  // Four separate places in the app assign to .value, and each has to move this label too.
+  // Intercepting the property is one place instead of four, and the next thing that writes
+  // .value cannot forget to call the sync.
+  const desc=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');
+  Object.defineProperty(sel,'value',{configurable:true,
+    get:function(){return desc.get.call(sel);},
+    set:function(v){desc.set.call(sel,v);ddSync(sel);}});
+  btn.onclick=function(e){e.stopPropagation();if(DDOPEN===d)ddClose();else ddOpen(d);};
+  menu.onclick=function(e){
+    const t=e.target.closest('.ddopt');if(!t)return;
+    e.stopPropagation();
+    sel.value=t.getAttribute('data-v');   // the setter above re-syncs label and rows
+    ddClose();
+    sel.dispatchEvent(new Event('change'));};
+  btn.onkeydown=function(e){
+    if(e.key==='ArrowDown'&&DDOPEN!==d){e.preventDefault();ddOpen(d);}
+    else if(e.key==='Escape')ddClose();};
+  ddSync(sel);return d;}
+document.addEventListener('click',ddClose);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')ddClose();});
 function rebuildSelect(){
   const sel=document.getElementById('lsel');sel.innerHTML='';
   LEVELS.forEach(function(x,i){const o=document.createElement('option');
@@ -4360,6 +4455,9 @@ LEVELS.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.text
 ls.onchange=function(){useLevel(+this.value);build();};
 const ts=document.getElementById('tsel');
 OUT.forEach((o,i)=>{const e=document.createElement('option');e.value=i;e.textContent=o.n;ts.appendChild(e);});
+// After both are populated and before anything assigns .value, so the very first label is
+// written by the same path every later one is.
+ddInit('lsel');ddInit('tsel');
 ts.value=1;ls.value=2;
 window.addEventListener('resize',function(){FITTED=false;if(LV)render();});
 ecApplyIntensity(0.5);   // the table is the source of truth, not the literals above it
