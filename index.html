@@ -145,8 +145,11 @@ body.dragging .dropzone{display:flex;}
    it is steering. */
 .kpi-out{font-size:13.5px;font-weight:800;letter-spacing:-.4px;line-height:1.2;padding-top:4px;}
 .kpi-band{font-size:9.5px;font-weight:700;color:#6b7280;margin-top:5px;font-feature-settings:"tnum";}
-.kpi-dir{display:inline-flex;align-items:center;margin-top:8px;font-size:8.5px;font-weight:700;
-  padding:3px 8px;border-radius:9px;letter-spacing:.2px;}
+/* margin-left cancels the pill's own left padding, so the chip's TEXT sits on the same
+   left edge as the outcome name and the band above it - the pill background hangs into the
+   card padding instead of the text hanging out of the column. */
+.kpi-dir{display:inline-flex;align-items:center;margin-top:8px;margin-left:-8px;
+  font-size:8.5px;font-weight:700;padding:3px 8px;border-radius:9px;letter-spacing:.2px;}
 .kpi-dir.live{background:#fffbeb;color:#b45309;}
 .kpi-dir.ver{background:#ecfdf5;color:#059669;}
 
