@@ -202,3 +202,47 @@ scroll clamp so a double reaches the curtain slightly sooner than its neighbours
 Impact: `.wildc`, `.wildb`, `.wgold`, `.pc.wildc.pl` in CSS; the wild and double branches in
 `render()`; the legal-move button list. The double **face** is still undecided — the current
 slashed `Q/J` stands until it is.
+
+---
+
+**D-013 — Lock & Key is modelled rankless, live-only, and faithful to the partner search**
+Status: APPROVED · Version: 1.1.1+ · Relates: D-012, D-011
+
+Decision: the Lock & Key pair enters the demo as a **two-tile obstacle that carries no
+rank**, on levels the **live** director owns, and its partner search reproduces the shipping
+behaviour rather than the behaviour the layout implies.
+
+Three parts, each with a reason.
+
+**Rankless.** The shipping deal hands a lock or key tile an ordinary card and then never
+reads its number — the tile answers only its partner, never the head card. Modelling that
+card as real would repeat the wild-slot supply leak: a card spent on a slot that cannot use
+it, unavailable to the deck and to every other hidden slot. So lock and key tiles come out
+of `SUP` exactly as wild slots do, out of `MATCHN` exactly as plus tiles do, and every path
+that assigns a rank skips them — `genLive`, `dReveal`, `ecReveal` and `reassignUnseen`.
+`ecReveal` had no such exclusion at all and was leaking wilds before this change.
+
+**Live-only.** `exh()` and `allHit()` do not know that two tiles can leave the board
+together for no draw, so a proof over a lock-and-key level would describe a different game —
+ISSUE-011's shape exactly, where the prover treated plus tiles as playable. The level
+therefore joins Wild and Double in `bends` and takes the live plan. Teaching the prover this
+obstacle is a separate, measured piece of work.
+
+**Faithful partner search.** There is no pair identity anywhere in the shipping data: a tile
+records only *key* or *lock*, and a tapped key takes the lowest-index eligible lock on the
+board. On multi-pair levels that is not the nearest lock for 48% of keys. The demo
+reproduces it — including the redirect that makes tapping a lock collect a possibly
+different lock — because an experience director has to reason about the game as it actually
+behaves, not as the layout suggests. When the chosen lock is not the nearest one the note
+says so out loud.
+
+Two consequences kept deliberately. A pair collect **clears the whole undo history**, as
+shipping does. And a ready pair **counts as an available move**, so the demo will not
+declare a loss while the player still holds a free two-card clear — the honest version of a
+signal the shipping build gets wrong in both directions.
+
+Impact: `LOCKS`/`KEYS`, `isLKSlot`, `lkFirst`/`lkReady`/`lkTap`/`lkCollect`/`lkRefused`;
+`legals()`, `useLevel()`, `snap()`/`back()`, the render branch and click routing, the
+win/lose/dead-end test, `skipToEnd()`, `mainAct()`, `bends`; the `FishCards` importer; and
+L7 as a built-in level. Visual language follows D-012's rule — the face identifies the tile
+and never changes, only the edge moves.

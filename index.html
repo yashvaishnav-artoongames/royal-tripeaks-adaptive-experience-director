@@ -191,6 +191,7 @@ body.dragging .dropzone{display:flex;}
 .chip.dead{background:#fffbeb;color:#d97706;}
 .chip.miss{background:#fef2f2;color:#dc2626;}
 .chip.wild{background:#f5f3ff;color:#7c3aed;}
+.chip.lk{background:#fdf2f8;color:#be185d;}
 
 .table-card{background:#fff;border-radius:16px;padding:4px 2px;border:1.5px solid #e8eaed;flex:0 0 auto;}
 table{width:100%;border-collapse:collapse;}
@@ -409,6 +410,29 @@ td.v{font-weight:500;}
 .dblb .su{position:absolute;right:.16em;top:.1em;font-size:.8em;font-weight:600;
   line-height:.86;text-align:center;color:#1a1d23;}
 .dblc.red .dblb .su{color:#dc2626;}
+/* Lock & Key. Two tiles that answer only each other: never matched against the head
+   card, and collecting the pair costs no deck card. One face for both halves so the pair
+   reads as a single mechanic - only the icon and the caption differ. The face is pinned
+   in every state for the same reason the wild's is: the face identifies the card, so the
+   edge is what moves. */
+/* .pc is pointer-events:none and only .clk re-enables it. A lock or key never gets .clk -
+   legals() excludes it, so it is never a match target - which means without this the tile
+   paints correctly and cannot be clicked at all. */
+.pc.lkc{background:#fdf2f8;border:1.5px solid #f0a5c8;box-shadow:none;
+  pointer-events:auto;cursor:pointer;}
+.pc.lkc.clk:hover,.pc.lkc:hover{background:#fdf2f8;border-color:#be185d;}
+.pc.lkc.lkno{opacity:.62;}
+.pc.lkc.lkno:hover{opacity:.8;}
+.lkb{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.16em;width:100%;height:100%;color:#be2361;}
+.lkb svg{width:1.45em;height:1.45em;display:block;fill:currentColor;}
+.lkb .cap{font-size:.42em;font-weight:800;letter-spacing:.1em;line-height:1;}
+.lkb.shk{animation:shk .38s ease;}
+/* Only the KEY lights up. The lock is the passive target and the shipping hint pass
+   never highlights it, even though tapping it works. */
+@keyframes lkp{0%,100%{box-shadow:0 0 0 0 rgba(219,39,119,.55)}
+  70%{box-shadow:0 0 0 8px rgba(219,39,119,0)}}
+.pc.lkc.lkrdy{border-color:#db2777;animation:lkp 1.5s ease-out infinite;cursor:pointer;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
   width:100%;height:100%;line-height:1;}
 .plusb .pv{font-size:22px;font-weight:800;letter-spacing:-1px;color:#3c3489;line-height:1;}
@@ -595,7 +619,17 @@ const LEVELS=[
  pos:[[-320,-45],[-245,-25],[-170,-5],[-275,35],[-200,55],[-125,75],[320,-45],[245,-25],[170,-5],[275,35],[200,55],[125,75],[0,135]],
  rot:[0,0,0,0,0,0,0,0,0,0,0,0,0],
  dep:DD([[0,[1]],[1,[2,3]],[2,[4]],[3,[4]],[4,[5]],[5,[]],[6,[7]],[7,[8,9]],[8,[10]],[9,[10]],[10,[11]],[11,[]],[12,[]]]),
- dbl:[12]}
+ dbl:[12]},
+// The earliest level in the game that uses lock and key, and the one every player meets
+// first. Slot 10 is the LOCK, open from the deal and sitting on top of four cards, so the
+// level cannot progress past it. Slot 8 is the KEY, buried under slot 9. One pair, so the
+// lowest-index partner search has only one candidate and the cross-board pairing that
+// shows up on multi-pair levels is invisible here.
+{name:'L7 \u2014 11 cards, deck 10 \u00b7 lock and key',short:'L7',N:11,deckN:10,scroll:false,
+ pos:[[-49,109],[48,109],[-49,-34],[48,-34],[-383,38],[-244,38],[-314,38],[383,38],[244,38],[314,38],[0,38]],
+ rot:[0,0,0,0,30,330,0,330,30,0,0],
+ dep:DD([[0,[10]],[1,[10]],[2,[10]],[3,[10]],[4,[6]],[5,[6]],[6,[]],[7,[9]],[8,[9]],[9,[]],[10,[]]]),
+ key:[8],lock:[10]}
 ];
 const OUT=[
 {n:'Comfortable Win',win:true,lo:4,hi:6,d:v=>'Comfortable Win \u2014 exactly '+v+' draws unused'},
@@ -633,6 +667,21 @@ const dblFilter=(i,arr)=>isDblSlot(i)?arr.filter(dblRoot):arr;
 // A double is a colour FAMILY, so roll it: four suits, two black and two red, even split.
 // Only called for a double slot, so no ordinary level's random stream moves.
 const dblSuit=rng=>SU[Math.floor(rng()*4)];
+// Lock & Key: a two-tile pair that clears ITSELF when the player taps the key. Neither
+// tile is ever matched against the head card and the pair costs no deck card, which makes
+// it the exact mirror of the Plus Card: that one tile fires itself and pays the deck,
+// this is two tiles that wait for the player and pay nothing. It is a genuine gate - the
+// pair blocks whatever sits under it until the player solves the ordering.
+// In the shipping JSON the key is FishCards and the roles are inverted from their names:
+// Value 1 is SharkCard which is the KEY, Value 2 is FishCard which is the LOCK.
+let LOCKS=new Set(), KEYS=new Set();
+const isLockSlot=i=>LOCKS.has(i);
+const isKeySlot=i=>KEYS.has(i);
+const isLKSlot=i=>LOCKS.has(i)||KEYS.has(i);
+const LKSVG={
+  lock:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6a5.2 5.2 0 0 0-5.2 5.2V10h2.5V6.8a2.7 2.7 0 0 1 5.4 0V10h2.5V6.8A5.2 5.2 0 0 0 12 1.6z"/>'+
+    '<path fill-rule="evenodd" d="M5.4 10h13.2c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5.4c-1 0-1.8-.8-1.8-1.8v-8.6c0-1 .8-1.8 1.8-1.8zm6.6 3.5a1.7 1.7 0 0 0-.9 3.1l-.5 2.2a.6.6 0 0 0 .6.7h1.6a.6.6 0 0 0 .6-.7l-.5-2.2a1.7 1.7 0 0 0-.9-3.1z"/></svg>',
+  key:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 1.6a5.3 5.3 0 0 0-1.3 10.4v8.4c0 1 .6 1.9 1.3 1.9s1.3-.9 1.3-1.9v-1.1h2.3a.75.75 0 0 0 0-1.5h-2.3v-2h2.3a.75.75 0 0 0 0-1.5h-2.3V12A5.3 5.3 0 0 0 12 1.6zm0 2.7a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z"/></svg>'};
 // Does slot i answer a waste of rank w? The one place the two obstacles change the rule.
 function slotTakes(i,w){
   if(isWildSlot(i))return w!==WILD_RANK;      // wild on wild is refused
@@ -659,15 +708,20 @@ function useLevel(ix){
   // whatever the deal assigned - so it is a fourth category: in N, matchable by the player,
   // and outside the rank supply. A double slot needs a PAIR, always two adjacent high ranks.
   WILDS=new Set(L.wild||[]);DBLS=new Set(L.dbl||[]);
+  LOCKS=new Set(L.lock||[]);KEYS=new Set(L.key||[]);LKDONE=[];
   // Plus tiles are not a surprise to the director - their firing is a pure function of
   // the cleared set, and on any line that clears the board every one of them fires. So
   // the deck the level is really planned against is the authored deck plus their total.
   PLUSTOTAL=0;for(const k in PLUS)PLUSTOTAL+=PLUS[k];
   PLUSTILES=Object.keys(PLUS).length;
-  // The tiles clear themselves, so they are not cards the player has to match.
-  MATCHN=N-PLUSTILES;
-  // Wild slots consume no rank, so they do not count against the physical supply.
-  SUP=4*Math.ceil((N-WILDS.size+DECKN+PLUSTOTAL)/52);
+  // The tiles clear themselves, so they are not cards the player has to match. Lock and
+  // key tiles are not matched either - they answer only each other - so both come out.
+  LKTILES=LOCKS.size+KEYS.size;
+  MATCHN=N-PLUSTILES-LKTILES;
+  // Wild slots consume no rank, so they do not count against the physical supply. Nor do
+  // lock and key tiles: the shipping deal hands them a card and then never reads its
+  // rank, which is exactly the waste the wild-slot fix removed.
+  SUP=4*Math.ceil((N-WILDS.size-LKTILES+DECKN+PLUSTOTAL)/52);
   PMLO=[];PMHI=[];
   for(let i=0;i<N;i++){let a=0,b=0;
     for(const p of(DEP[i]||[])){if(p<26)a|=1<<p;else b|=1<<(p-26);}
@@ -698,7 +752,10 @@ function useLevel(ix){
   STRUCT=N+' tableau + '+DECKN+' deck \u00b7 '+DRAWS+' draws (ratio '+(DRAWS/N).toFixed(2)+
     ') \u00b7 '+ROOTS+' face-up \u00b7 supply '+SUP+'/rank'+
     (PLUSTILES?(' \u00b7 '+PLUSTILES+' plus tile'+(PLUSTILES===1?'':'s')+
-      ' \u2192 '+MATCHN+' to match, up to '+(DRAWS+PLUSTOTAL)+' draws'):'');
+      ' \u2192 '+MATCHN+' to match, up to '+(DRAWS+PLUSTOTAL)+' draws'):'')+
+    (LKTILES?(' \u00b7 '+Math.min(KEYS.size,LOCKS.size)+' lock and key pair'+
+      (Math.min(KEYS.size,LOCKS.size)===1?'':'s')+' ('+LKTILES+' tiles, never matched, '+
+      MATCHN+' to match)'):'');
 }
 let RSEED=(Date.now()^0x9e3779b9)>>>0;
 function srand(s){RSEED=(s>>>0)||1;}
@@ -1285,8 +1342,9 @@ function genLive(tgt,tv){
   let first=true;
   for(const rt of roots){
     // A wild root needs no rank at all - binding one spends a card from the pool on a slot
-    // the matching rule never consults.
-    if(isWildSlot(rt))continue;
+    // the matching rule never consults. A lock or key root is the same case: it is never
+    // matched, only ever collected by its partner, so its rank would be dead data.
+    if(isWildSlot(rt)||isLKSlot(rt))continue;
     let c=first?nb(seedR).filter(r=>pool[r]>0)
                 :ALL.filter(r=>pool[r]>0&&nb(seedR).indexOf(r)<0);
     if(!c.length)c=ALL.filter(r=>pool[r]>0);
@@ -1333,8 +1391,9 @@ function dRunLen(){
 function dChildren(i){let c=0;for(let y=0;y<N;y++)if((DEP[y]||[]).indexOf(i)>=0)c++;return c;}
 function dReveal(newly){
   // A wild slot is never bound - it has no rank, and spending one from the pool on a slot
-  // the matching rule ignores is the same waste the plus tiles cause.
-  newly=newly.filter(function(z){return !isWildSlot(z);});
+  // the matching rule ignores is the same waste the plus tiles cause. Lock and key tiles
+  // are excluded for the same reason: they answer only each other, never the head card.
+  newly=newly.filter(function(z){return !isWildSlot(z)&&!isLKSlot(z);});
   if(!newly.length)return;
   // lead with the card that opens the most: a chain that keeps revealing keeps running
   newly=newly.slice().sort(function(a,b){return dChildren(b)-dChildren(a);});
@@ -1503,9 +1562,70 @@ function wildRefused(i){
   render();
   setTimeout(function(){SHAKE=-1;render();},420);
 }
+// The partner search, and the load-bearing detail of the whole obstacle: there is no pair
+// identity anywhere in the data. A tile records only 'I am a key' or 'I am a lock', so a
+// tapped key takes the LOWEST-INDEX eligible lock on the board - never the nearest one,
+// never necessarily the one the layout visibly pairs it with. Measured across the shipping
+// levels, that is not the nearest lock for 48% of keys on multi-pair levels.
+function lkFirst(S){
+  for(let i=0;i<N;i++)if(S.has(i)&&!cl.has(i)&&expo(i)&&onScreen(i))return i;
+  return -1;}
+function lkReady(){return lkFirst(KEYS)>=0&&lkFirst(LOCKS)>=0;}
+function lkNearest(from,S){let best=-1,bd=Infinity;
+  for(let i=0;i<N;i++){if(!S.has(i)||cl.has(i)||!expo(i)||!onScreen(i))continue;
+    const dx=POS[i][0]-POS[from][0],dy=POS[i][1]-POS[from][1],d=dx*dx+dy*dy;
+    if(d<bd){bd=d;best=i;}}
+  return best;}
+// A revealed half with no partner yet is inert. Shipping logs 'No PairCards Founded.' and
+// the tap does nothing at all, which reads as a broken card; say why instead.
+function lkRefused(i){
+  SHAKE=i;beat='Blocked';
+  note=isKeySlot(i)
+    ?'This key has no lock to open yet \u2014 uncover a lock and the pair comes off together.'
+    :'This lock has no key yet \u2014 the key must be uncovered before the pair can be collected.';
+  render();
+  setTimeout(function(){SHAKE=-1;render();},420);}
+// Tapping the LOCK is redirected onto a key - shipping re-enters the click on the partner,
+// so only the key ever runs the collect. The lock is then chosen again from scratch, which
+// means tapping one lock can collect a different one.
+function lkTap(i){
+  const key=isKeySlot(i)?i:lkFirst(KEYS);
+  if(key<0)return lkRefused(i);
+  const lock=lkFirst(LOCKS);
+  if(lock<0)return lkRefused(i);
+  lkCollect(key,lock);}
+function lkCollect(key,lock){
+  // Shipping wipes the ENTIRE undo history for the level on a pair collect, not just this
+  // move. That is a consequence the player feels, so the demo does it too.
+  stack.length=0;
+  const near=lkNearest(key,LOCKS);
+  cl.add(key);cl.add(lock);scrollAdvance();
+  LKDONE.push([key,lock]);
+  // No deck card is spent, no head card changes, and k does not move: a pair collect is
+  // not a match, so it can neither feed nor break the streak meter. What it DOES do is
+  // uncover cards, and on a live level those have to be bound the same as after a play.
+  const rv=unl(key)+unl(lock);
+  const nw=[];for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
+  if(ecInRescue()&&EC){EC.opened+=nw.length;ecReveal(nw);}
+  else if(LV.live)dReveal(nw);
+  plusSweep();
+  const lf=N-cl.size;
+  act='Unlock pair';log.push({t:'k',s:'PAIR'});
+  beat=lf===0?'Payoff':'Unlock';
+  let n='Key '+key+' opened lock '+lock+' \u2014 two cards off the board for one tap, no '+
+    'deck card spent, and the streak meter does not move. ';
+  n+=rv>0?('Unblocks '+rv+' card'+(rv>1?'s':'')+'. '):'Nothing new opens. ';
+  if(near>=0&&near!==lock)
+    n+='The nearest lock was '+near+'. The pair search takes the lowest slot index on the '+
+      'board rather than the nearest tile, so the key crossed to a lock the layout does not '+
+      'pair it with \u2014 which branch opens is decided by slot numbering, not by you. ';
+  n+='Undo history is cleared by a pair collect.';
+  note=n;
+  render();}
 const legals=()=>{const a=[];
   for(let i=0;i<N;i++){
     if(isPlusCard(i))continue;                  // a plus tile is never a match target
+    if(isLKSlot(i))continue;                    // nor a lock or key: they answer only each other
     if(expo(i)&&onScreen(i)&&slotTakes(i,wr))a.push(i);}
   return a;};
 const unl=i=>{let c=0;for(let n=0;n<N;n++){const ps=DEP[n]||[];
@@ -1577,7 +1697,7 @@ function build(){
   // carrying either, the prover would be proving a game nobody plays. That is exactly the
   // defect already recorded for plus tiles. Until exh() models them, decline: a level with
   // no proof makes no promise, which is strictly better than a promise that is not true.
-  const bends=(WILDS.size>0||DBLS.size>0);
+  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0);
   const plan=(FORCELIVE||bends)?FORCEPLAN:((known&&known.d==='L')?LIVEPLAN:PLAN);
   BUILDING={tgt:tgt,vals:vals,deadv:deadv,out:null,sd:0,usedMode:0,stage:0,plan:plan,cached:!!known};
   setBusy(plan[0].msg);
@@ -1796,7 +1916,7 @@ function snap(){stack.push({c:Array.from(cl),wl:wl,wr:wr,di:di,k:k,
   llb:LV.LB.slice(),
   lpool:LV.pool?Object.assign({},LV.pool):null,
   lusd:LV.usd?Object.assign({},LV.usd):null,
-  pf:PLUSFIRED.slice(),
+  pf:PLUSFIRED.slice(),lk:LKDONE.slice(),
   stk:{n:STK.n,color:STK.color,same:STK.same,
        cards:STK.cards.map(function(c){return Object.assign({},c);})},
   sg:STREAK_GRANTED,sr:STREAK_REWARDS,coins:COINS,
@@ -1822,6 +1942,7 @@ function back(){if(!stack.length)return;
       recent:s.ec.recent.slice(),pairUsed:Object.assign({},s.ec.pairUsed)}):null;
   ECRUNS=s.ecr;ECGRANTED=s.ecg;PHASE=s.ph;
   if(s.pf)PLUSFIRED=s.pf.slice();
+  if(s.lk)LKDONE=s.lk.slice();
   if(s.stk)STK={n:s.stk.n,color:s.stk.color,same:s.stk.same,cards:s.stk.cards.slice()};
   STREAK_GRANTED=s.sg;STREAK_REWARDS=s.sr;COINS=s.coins;
   render();}
@@ -1980,7 +2101,7 @@ function reassignUnseen(rng){
   // roots and dReveal filters wilds out of newly, both for this exact reason. This loop
   // did not, and it is the REPLAN path - so every re-deal quietly burned one card per
   // hidden wild, and the pool.length check below over-demanded by the same count.
-  for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i))hid.push(i);
+  for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i)&&!isLKSlot(i))hid.push(i);
   const freeDeck=dk.length-di;
   if(!hid.length&&!freeDeck)return null;
   const sup={},pairUsed={};
@@ -1993,7 +2114,9 @@ function reassignUnseen(rng){
   claim(LV.seed,LV.seedCard[1]);
   for(let p=0;p<di;p++)claim(dk[p][1],dk[p][0].slice(-1));
   // A wild consumes no supply and carries no label, so it is skipped rather than read.
-  for(let i=0;i<N;i++)if((cl.has(i)||expo(i))&&!isWildSlot(i)&&LV.LB[i])claim(LV.rank[i],LV.LB[i][1]);
+  // Lock and key tiles are the same: rankless, labelless, and outside the physical deck.
+  for(let i=0;i<N;i++)if((cl.has(i)||expo(i))&&!isWildSlot(i)&&!isLKSlot(i)&&LV.LB[i])
+    claim(LV.rank[i],LV.LB[i][1]);
   const pool=[];
   ALL.forEach(function(r){for(let c=0;c<sup[r];c++)pool.push(r);});
   if(pool.length<hid.length+freeDeck)return null;
@@ -2092,6 +2215,8 @@ let PLUSFIRED=[];            // slots that have fired this attempt, in order
 let PLUSTOTAL=0;             // cards every plus tile on this level will hand out
 let PLUSTILES=0;             // how many tiles, i.e. free clears the board gives away
 let MATCHN=0;                // board cards the player actually has to match
+let LKTILES=0;               // lock and key tiles on this level, keys plus locks
+let LKDONE=[];               // [key,lock] pairs collected this attempt, in order
 function isPlusCard(i){return PLUS&&PLUS[i]!==undefined;}
 function plusValue(i){return (PLUS&&PLUS[i])||0;}
 function plusTotal(){let s=0;for(const k in PLUS)s+=PLUS[k];return s;}
@@ -3027,6 +3152,12 @@ function ecMint(){
 // ceiling and the intent leaks - this is the bug that made every rescue cascade.
 function ecReveal(newly){
   if(!newly.length||!LV.pool)return;
+  // The same exclusion dReveal makes, which this path was missing entirely: a wild has no
+  // rank and a lock or key answers only its partner, so binding either spends a card from
+  // the pool on a slot that will never read it. On the rescue path that matters twice over,
+  // because the supply it draws from is the one the rescue just topped up.
+  newly=newly.filter(function(z){return !isWildSlot(z)&&!isLKSlot(z);});
+  if(!newly.length)return;
   newly=newly.slice().sort(function(a,b){return dChildren(b)-dChildren(a);});
   let w=wr,cont=Math.max(0,EC.cardCeil-EC.cardCleared);
   for(const n of newly){
@@ -3523,7 +3654,10 @@ function skipToEnd(){
   while(g++<800){
     const lg=legals();
     if(N-cl.size===0)break;
-    if(lg.length)play(lg[Math.floor(rnd()*lg.length)]);
+    // A ready pair is free, so take it first. lkTap spends no rnd(), so preferring it
+    // does not shift the level's random stream.
+    if(lkReady())lkTap(lkFirst(KEYS));
+    else if(lg.length)play(lg[Math.floor(rnd()*lg.length)]);
     else if(deckLeft()>0)draw();
     else break;
   }
@@ -3533,7 +3667,8 @@ function skipToEnd(){
   render();
 }
 function mainAct(){const lg=legals();
-  if(lg.length===1)play(lg[0]);else if(lg.length===0)draw();}
+  if(lg.length===1)play(lg[0]);
+  else if(lg.length===0){if(lkReady())lkTap(lkFirst(KEYS));else draw();}}
 function reset(){if(!LV)return;
   // put the level back exactly as it was built: a re-plan belongs to one round only
   if(LV.base){
@@ -3543,7 +3678,7 @@ function reset(){if(!LV)return;
     if(LV.base.pool)LV.pool=Object.assign({},LV.base.pool);
     if(LV.base.usd)LV.usd=Object.assign({},LV.base.usd);
   }
-  ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];
+  ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];LKDONE=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
@@ -3575,8 +3710,11 @@ function render(){
   // the win check ran only on a match, a board whose last tile is a plus card would empty
   // and raise nothing - the gap section 14 of the obstacle doc measures.
   const left=N-cl.size,dkn=deckLeft(),lg=legals();
-  const won=left===0,lost=!won&&dkn===0&&lg.length===0&&!wild,mt=k%PIPS;
-  const den=!won&&!lost&&!wild&&lg.length===0&&mt===PIPS-1&&left>0;
+  // A ready pair is a real move that costs no draw, so it has to count here. Without it
+  // the demo would call a loss while the player still holds a free two-card clear.
+  const rdy=lkReady();
+  const won=left===0,lost=!won&&dkn===0&&lg.length===0&&!rdy&&!wild,mt=k%PIPS;
+  const den=!won&&!lost&&!wild&&lg.length===0&&!rdy&&mt===PIPS-1&&left>0;
   const AV=avail();
   document.getElementById('kpis').innerHTML=
     kpi('#3b5bdb','TAB','Cards left',left,left+' of '+N)+
@@ -3632,6 +3770,17 @@ function render(){
         Math.max(13,Math.round(CW*0.38))+'px">+'+v+'</span>'+
         (small?'':'<span class="pl">PLUS<br>CARD</span>')+'</span>';
       cls+=' plusc';}
+    else if(isLKSlot(i)&&show){
+      // A COVERED lock or key is indistinguishable from an ordinary face-down card - no
+      // badge, no marker. That is deliberate in the shipping build: the player cannot see
+      // the gate coming, and cannot plan around it, until the tile flips. So this branch
+      // is gated on `show` and a covered tile falls through to the face-down painter.
+      const isk=isKeySlot(i);
+      body='<span class="lkb'+(SHAKE===i?' shk':'')+'">'+(isk?LKSVG.key:LKSVG.lock)+
+        '<span class="cap">'+(isk?'KEY':'LOCKED')+'</span></span>';
+      cls+=' lkc';
+      if(e&&onScreen(i)){if(lkReady()){if(isk)cls+=' lkrdy';}else cls+=' lkno';}
+      if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
     else if(isWildSlot(i)){
       body='<span class="wildb'+(SHAKE===i?' shk':'')+'">'+
         '<span class="wl">WILD</span></span>';
@@ -3657,8 +3806,11 @@ function render(){
     else body=TG.count?'<span style="font-size:10px;color:#9ca3af">'+bleft(i)+'</span>'
       :'<span style="width:5px;height:5px;border-radius:50%;background:#c9ccd6;display:block"></span>';
     const refuse=isWildSlot(i)&&!g&&e&&onScreen(i)&&!pick;
+    // A revealed half is always tappable, ready or not - an unready tap explains itself.
+    const lktap=isLKSlot(i)&&!g&&e&&onScreen(i);
     h+='<div class="'+cls+'"'+(pick?' onclick="play('+i+')"':
-      (refuse?' onclick="wildRefused('+i+')"':''))+' style="'+st+'">'+body+'</div>';}
+      (lktap?' onclick="lkTap('+i+')"':
+      (refuse?' onclick="wildRefused('+i+')"':'')))+' style="'+st+'">'+body+'</div>';}
   B.innerHTML=h;
   let ph='';
   for(let i=0;i<PIPS;i++){
@@ -3763,6 +3915,7 @@ function render(){
   document.getElementById('log').innerHTML=log.map(e=>
     e.t==='p'?'<span class="chip">'+e.s+'</span>'
    :e.t==='w'?'<span class="chip wild">WILD</span>'
+   :e.t==='k'?'<span class="chip lk">PAIR</span>'
    :e.t==='m'?'<span class="chip miss">\u2717 '+e.s+'</span>'
    :'<span class="chip '+(e.dead?'dead':'draw')+'">\u21ba '+e.s+'</span>').join('');
 }
@@ -3838,6 +3991,44 @@ function parseLevel(nm,raw){
     if(dblc.indexOf(i)>=0)warn.push('slot '+i+' is both Wild and Double Value - wild is tested first, so the double values are unreachable');}
   for(const i of dblc)if(plus[i]!==undefined)
     warn.push('slot '+i+' is both a Plus Card and a Double Value card');
+  // Lock & Key: two tiles that clear each other, never matched, no deck cost. The JSON key
+  // is FishCards and the two roles are INVERTED from their names - SharkCard = 1 is the
+  // KEY and FishCard = 2 is the LOCK, a leftover from an earlier shark-and-fish theme that
+  // the shipping code resolves in exactly one place. Same positional-key trap as PlusCards:
+  // the parse takes the first child property as index, so key order is load-bearing.
+  const lockc=[],keyc=[];
+  for(const e of (d.FishCards||[])){
+    const idx=(typeof e.index==='number')?e.index:undefined;
+    const val=(typeof e.Value==='number')?e.Value:undefined;
+    if(idx===undefined||val===undefined){
+      warn.push('FishCards entry missing index or Value: '+JSON.stringify(e));continue;}
+    if(idx<0||idx>=N){warn.push('FishCards index '+idx+' is outside 0\u2013'+(N-1));continue;}
+    // Value 0 exists in the shipping data exactly once. It is not a member of the enum, the
+    // shipping cast is unchecked, and the tile ends up neither key nor lock: it RENDERS as
+    // a lock but ACTS as the key, and the artwork visibly swaps at the moment of collection.
+    // Refuse it rather than reproduce it - a role that has no name cannot be authored on purpose.
+    if(val!==1&&val!==2){
+      warn.push('FishCards index '+idx+' has Value '+val+
+        ' \u2014 only 1 (key) and 2 (lock) exist, so this tile has no role and is dropped');continue;}
+    if(keyc.indexOf(idx)>=0||lockc.indexOf(idx)>=0){
+      warn.push('duplicate FishCards entry for index '+idx);continue;}
+    (val===1?keyc:lockc).push(idx);}
+  if(keyc.length!==lockc.length)
+    warn.push('FishCards is unbalanced: '+keyc.length+' key'+(keyc.length===1?'':'s')+
+      ' against '+lockc.length+' lock'+(lockc.length===1?'':'s')+
+      ' \u2014 the surplus can never be collected and blocks whatever it covers for the whole level');
+  // Measured over every lock/key tile in the shipping data: a lock never blocks a key and a
+  // key never blocks a lock. That is what stops a pair deadlocking itself, and it is a
+  // property of the authored data rather than of the code - so it is worth saying out loud
+  // when a level breaks it.
+  for(const a of keyc.concat(lockc))for(const b of (dep[a]||[]))
+    if(keyc.indexOf(b)>=0||lockc.indexOf(b)>=0)
+      warn.push('lock/key tile '+a+' is blocked by lock/key tile '+b+
+        ' \u2014 no shipping level does this, and a pair that blocks its own partner can never be collected');
+  for(const i of keyc.concat(lockc)){
+    if(plus[i]!==undefined)warn.push('slot '+i+' is both a Plus Card and a Lock/Key tile');
+    if(wildc.indexOf(i)>=0)warn.push('slot '+i+' is both Wild and a Lock/Key tile');
+    if(dblc.indexOf(i)>=0)warn.push('slot '+i+' is both Double Value and a Lock/Key tile');}
   const deckN=Number(d.NumberOfDeckCards||0);
   // A stripped export may omit IsScrollableLevel. It can be recovered from the rightmost card:
   // a fixed board is centred and tops out near 524, a scrolling one is anchored at -400 and runs
@@ -3853,7 +4044,7 @@ function parseLevel(nm,raw){
   if(!d.NumberOfDeckCards)warn.push('NumberOfDeckCards is missing or zero');
   return {name:nm+' \u2014 '+N+' cards, deck '+deckN,short:nm,N:N,deckN:deckN,
           pos:pos,rot:rot,dep:dep,warn:warn,scroll:scroll,scrollInferred:scrollInferred,
-          plus:plus,wild:wildc,dbl:dblc};
+          plus:plus,wild:wildc,dbl:dblc,lock:lockc,key:keyc};
 }
 function natsort(a,b){
   const sa=a.short.replace(/\d+/g,''),sb=b.short.replace(/\d+/g,'');
