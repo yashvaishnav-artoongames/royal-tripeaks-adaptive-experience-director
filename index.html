@@ -375,10 +375,8 @@ td.v{font-weight:500;}
   38%{transform:translateX(4px)}58%{transform:translateX(-3px)}78%{transform:translateX(2px)}}
 .wildb.shk{animation:shk .38s ease;}
 .wildb{display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;}
-.wildb .wv{width:1.45em;height:1.38em;display:block;fill:currentColor;color:#b8790a;}
-.wildb .wl{font-size:9px;font-weight:800;letter-spacing:.3px;color:#b8790a;margin-top:2px;}
+.wildb .wl{font-size:.62em;font-weight:800;letter-spacing:.06em;color:#b8790a;}
 .wgold{display:inline-flex;align-items:center;gap:4px;color:#b8790a;}
-.wgold .wbtn{width:13px;height:12px;fill:currentColor;}
 .wgold .sy{color:#b8790a;font-size:9px;font-weight:800;letter-spacing:.3px;}
 /* Two ranks stacked with a rule, both pips in the corner. Sizes are in em, NOT px: the
    board scales every card by SC and render() sets each card's font-size from its own
@@ -3588,8 +3586,8 @@ function render(){
         (small?'':'<span class="pl">PLUS<br>CARD</span>')+'</span>';
       cls+=' plusc';}
     else if(isWildSlot(i)){
-      body='<span class="wildb'+(SHAKE===i?' shk':'')+'"><svg class=\"wv\" viewBox=\"0 0 20 19\" aria-hidden=\"true\"><path d=\"M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z\"/></svg>'+
-        (CW<46?'':'<span class="wl">WILD</span>')+'</span>';
+      body='<span class="wildb'+(SHAKE===i?' shk':'')+'">'+
+        '<span class="wl">WILD</span></span>';
       cls+=' wildc';
       if(!pl&&e&&onScreen(i))cls+=' wildno';
       if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
@@ -3684,9 +3682,7 @@ function render(){
         // the one card that always plays, so the button says that instead of a rank.
         const L0=LV.LB[i];
         const inner=isWildSlot(i)
-          ?'<span class="wgold"><svg class="wbtn" viewBox="0 0 20 19" aria-hidden="true">'+
-            '<path d="M10 1l2.47 5.9 6.4.51-4.87 4.2 1.49 6.24L10 14.6l-5.49 3.25 1.49-6.24L1.13 7.41l6.4-.51z"/>'+
-            '</svg><span class="sy">WILD</span></span>'
+          ?'<span class="wgold"><span class="sy">WILD</span></span>'
           :('<span'+(L0&&L0[2]?' class="red"':'')+'><span class="rk">'+(L0?L0[0]:'?')+
             '</span><span class="sy">'+(L0?L0[1]:'')+'</span></span>');
         return '<button onclick="play('+i+')">'+inner+
