@@ -71,3 +71,53 @@ strand cards can be cleared instead. On L12 (3 tiles × 3 = +9 cards on a 10-car
 deck) Close Lose lands at 1 stranded against a band of 3–5.
 
 A plus tile can never be part of a strand set — it always fires if uncovered.
+
+---
+
+**ISSUE-006 — `reassignUnseen()` stripped the granted-card tag**
+Severity: MEDIUM · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.1.0
+
+The REPLAN rung rebuilt the undrawn deck by pushing 3-element cards, dropping the
+`[3]` tag that RULE-012 rests on. After any re-deal, cards a reward or a Plus Card
+had granted counted against core rank supply — visible as the bot's
+"rank X used 5 times, supply is 4". Fixed by carrying the tag positionally: the
+rank and suit are the director's to change, where the card came from is not.
+
+---
+
+**ISSUE-007 — `reDirect()`'s reshaped rung did not preserve a committed Wild**
+Severity: MEDIUM · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.1.0
+
+RULE-009 says every ladder rung calls `preserveWilds()`. It was VERIFIED false for
+the `reshaped` rung: `reassignUnseen()` rebuilds the tail from the rank pool and
+carries no Wilds, so a re-deal ate a Wild the player had earned. Only reachable
+with `STREAK_REWARD.type='WildCard'`, which is not the default. Fixed.
+
+---
+
+**ISSUE-008 — `reset()` swept Plus Cards before rebuilding the deck**
+Severity: LOW · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.1.0
+
+`plusSweep()` ran while `dk` still held the previous round's array, so a tile with
+no blockers would fire at the deal, splice into the stale deck and write it back
+through `LV.deck` — and the absorb it recorded was then overwritten by the reset
+that followed. Latent: every authored tile has blockers, and `parseLevel` warns
+when one does not. Fixed by sweeping after the round state is rebuilt.
+
+---
+
+**ISSUE-009 — the verification gate cannot run on a Windows checkout**
+Severity: HIGH · Status: FIXED · Introduced: 1.0.1 · Fixed: 1.1.0
+
+Every harness matched `/<script>\n"use strict";/` against `index.html`. With
+`core.autocrlf=true` — the Windows default — git rewrites the working tree to CRLF
+on checkout, so the regex found nothing and all five suites died with
+`TypeError: Cannot read properties of null (reading '1')` before running a single
+case. VERIFIED 2026-08-24: working tree 3770 CRLF lines, committed blob 3654 LF
+lines. The repository content and the deployed site were never affected.
+
+This is ISSUE-001's shape exactly — a break that stays invisible because nothing
+runs. It went unnoticed through 1.0.2 and 1.0.3, both of which shipped with
+"verification not run". Fixed by matching `\r?\n` in all six harnesses. The root
+cause is unaddressed: a `.gitattributes` pinning `index.html` to LF would stop the
+conversion, and adding a file to the repository root needs a decision.

@@ -515,7 +515,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.0.3';
+const APP_VERSION='1.1.0';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -809,6 +809,55 @@ function buildRuns(T,used,clamp,isLose,rng){
     return {ln,dl,dead:used-(R-1),clamp,needPay};}
   return null;
 }
+// ==== PACING PREFERENCE =======================================================
+// D-007 rejected chain shape as a FILTER inside buildRuns: deleting partitions before
+// the prover converts yield loss one-for-one into live levels, because PLAN has a single
+// verified stage. This is the same taste applied strictly DOWNSTREAM of exh() - every
+// candidate scored here has already been proved - so a preference can never empty a
+// non-empty pool and verified coverage cannot move. If one candidate proves, it ships,
+// exactly as before.
+//
+// Deterministic on purpose: not one rnd() call, so the build's random stream is byte for
+// byte what it was and no marginal level can be shifted off its seed by scoring.
+const PACE={K:4, extraMs:250,
+  endShort:-22, endLong:8, stutter:-7, stutterPair:-10, lateDead:-9,
+  noRelease:-20, releaseGap:-3, frontLoad:-14};
+function paceScore(g){
+  const ln=g.ln||[], R=ln.length;
+  if(!R)return 0;
+  const T=ln.reduce(function(a,b){return a+b;},0)||1;
+  const cum=[];let c=0;for(let j=0;j<R;j++){c+=ln[j];cum.push(c);}
+  let s=0;
+  // The ending. D-007's own metric: a level that finishes on a single match reads as one
+  // that ran out rather than one that was finished.
+  if(ln[R-1]<3)s+=PACE.endShort; else if(ln[R-1]>=5)s+=PACE.endLong;
+  // Stutter - single-match runs, worse back to back.
+  for(let j=0;j<R;j++)if(ln[j]===1){s+=PACE.stutter;if(j>0&&ln[j-1]===1)s+=PACE.stutterPair;}
+  // Dead draws parked in the last quarter. This term is "the back half is padding".
+  const gaps=g.gaps||[];
+  for(let j=0;j<gaps.length&&j<cum.length;j++)
+    if(gaps[j]>0&&cum[j]/T>0.75)s+=PACE.lateDead*gaps[j];
+  // A squeeze has to resolve: after the last denial there should be a payout, and soon.
+  // This is the tension-relief term.
+  const dl=g.dl||[];
+  if(dl.length){
+    let last=0;for(let k=0;k<dl.length;k++)if(dl[k]-1>last)last=dl[k]-1;
+    let at=-1;for(let j=last+1;j<R;j++)if(pays(ln[j])>=1){at=j;break;}
+    s+=(at<0)?PACE.noRelease:PACE.releaseGap*Math.min(8,at-last);
+  }
+  // Q-003's softer form, delivered as a preference rather than the gate it was posed as:
+  // the longest chain merely should not sit in the first quarter. Placed by its midpoint,
+  // so a long run straddling the line is judged by its centre of mass.
+  let mi=0;for(let j=1;j<R;j++)if(ln[j]>ln[mi])mi=j;
+  if((cum[mi]-ln[mi]/2)/T<0.25)s+=PACE.frontLoad;
+  return s;
+}
+// Argmax, first wins ties. No random tie-break: see the determinism note above.
+function pickBest(pool){
+  let best=pool[0];
+  for(let i=1;i<pool.length;i++)if(pool[i].pace>best.pace)best=pool[i];
+  return best;
+}
 function gen(tgt,tv,rng,mode){
   // tier 0 is the original generator, untouched. tiers 1 and 2 only ever run after
   // tier 0 has exhausted the whole band, so levels that build today are unaffected.
@@ -905,7 +954,8 @@ function gen(tgt,tv,rng,mode){
     for(const e of ev)if(e.t==='p')LB2[e.i]=lab2(rank[e.i]);
     for(let i=0;i<N;i++)if(!LB2[i])LB2[i]=lab2(rank[i]);
     return {rank:rank,LB:LB2,deck:deck2,seed:seed,seedCard:sd2,ln:br.ln,dl:br.dl,clamp:br.clamp,
-      dead:br.dead,needPay:br.needPay,pay:br.ln.reduce((a,b)=>a+pays(b),0),mode:mode};
+      gaps:gaps.slice(),dead:br.dead,needPay:br.needPay,
+      pay:br.ln.reduce((a,b)=>a+pays(b),0),mode:mode};
   }
 
   for(let j=0;j<R;j++){
@@ -937,8 +987,8 @@ function gen(tgt,tv,rng,mode){
   for(const r of ev.filter(e=>e.t==='d').map(e=>e.r).concat(sp)){const Q=lab(r);deck.push([Q[0]+Q[1],r,Q[2]]);}
   for(const e of ev)if(e.t==='p')LB[e.i]=lab(rank[e.i]);
   for(let i=0;i<N;i++)if(!LB[i])LB[i]=lab(rank[i]);
-  return {rank,LB,deck,seed,seedCard:sd,ln:br.ln,dl:br.dl,clamp:br.clamp,dead:br.dead,
-    needPay:br.needPay,pay:br.ln.reduce((a,b)=>a+pays(b),0),mode:mode};
+  return {rank,LB,deck,seed,seedCard:sd,ln:br.ln,dl:br.dl,clamp:br.clamp,gaps:gaps.slice(),
+    dead:br.dead,needPay:br.needPay,pay:br.ln.reduce((a,b)=>a+pays(b),0),mode:mode};
 }
 // ---- bot agent -------------------------------------------------------------
 // walks every level and outcome, rebuilds each one from a fixed seed so repeat runs
@@ -1474,15 +1524,26 @@ function searchPass(mode,ms){
   for(const cand of vals){
     const cEnd=start+per*(++vi);
     if(B.out)break;
-    for(let rd=0;rd<300&&!B.out&&Date.now()<cEnd;rd++){
+    // Collect several PROVED candidates for this target value and ship the best paced one.
+    // Bounded three ways: PACE.K proofs, PACE.extraMs after the FIRST proof, and the
+    // per-value slice that already existed. The search up to the first proof is identical
+    // to before, so a level that proves once behaves exactly as it did.
+    const pool=[];let pEnd=0;
+    const done=function(){return pool.length>=PACE.K||(pEnd>0&&Date.now()>=pEnd);};
+    for(let rd=0;rd<300&&!done()&&Date.now()<cEnd;rd++){
       B.sd=(rnd()*1e9)|0;let s=B.sd;
       const rng=function(){s|=0;s=s+0x6D2B79F5|0;let t=Math.imul(s^s>>>15,1|s);
         t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
-      for(let a=0;a<1500&&!B.out;a++){
+      for(let a=0;a<1500&&!done();a++){
         const g=gen(B.tgt,cand,rng,mode);if(!g)continue;
         const v=exh(g.rank,g.deck,g.seed,B.tgt.win,cand,g.needPay);
         if(!v){fail('verify');continue;}
-        g.ver=v;g.tgt=B.tgt;g.tv=cand;B.out=g;B.usedMode=mode;}}
+        g.ver=v;g.tgt=B.tgt;g.tv=cand;g.sd=B.sd;g.pace=paceScore(g);
+        pool.push(g);
+        if(pEnd===0)pEnd=Date.now()+PACE.extraMs;}}
+    // The latch. Anything proved ships. This line is the whole coverage guarantee: the
+    // scorer chooses AMONG proofs and can never reject the only one.
+    if(pool.length){B.out=pickBest(pool);B.out.poolN=pool.length;B.usedMode=mode;}
     if(!B.out&&mode===3&&B.deadv.indexOf(cand)<0)B.deadv.push(cand);}
 }
 function buildTick(){
@@ -1504,7 +1565,9 @@ function buildTick(){
 }
 function finishBuild(){
   const B=BUILDING;BUILDING=null;
-  const tgt=B.tgt,out=B.out,sd=B.sd,deadv=B.deadv;
+  // out.sd, not B.sd: under pooling B.sd is the last seed tried, not the winner's, and
+  // this is the seed the level is reproduced from.
+  const tgt=B.tgt,out=B.out,sd=(out&&out.sd!==undefined)?out.sd:B.sd,deadv=B.deadv;
   document.querySelectorAll('.ctlbar button').forEach(function(b){b.disabled=false;});
   if(out){if(out.unreach===undefined)out.unreach=deadv.slice();
     if(out.usedMode===undefined)out.usedMode=B.usedMode;}
@@ -1593,6 +1656,9 @@ function finishBuild(){
     row('Outcome','<span class="day-tag">'+out.tgt.d(out.tv)+'</span>')+
     row('Priority','Streak denial \u2014 core logic, every level')+
     row('Chains',out.ln.join(' \u00b7 ')+' <span class="delta delta-neu">clamp '+out.clamp+'</span>')+
+    (out.pace!==undefined?
+      row('Shape',out.pace+' <span class="delta delta-neu">best of '+(out.poolN||1)+
+        ' proved</span>'):'')+
     row('Payouts',out.pay+(out.needPay?'':' <span class="delta delta-neu">none possible</span>'))+
     row('Denials','after run '+out.dl.join(', '))+
     row('Mistakes','forgives '+out.dead+', one per dead draw')+
@@ -1847,13 +1913,18 @@ function reassignUnseen(rng){
   for(const i of hid){const r=pool[k2++];const L1=lab(r);if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
   const dk2=dk.slice(0,di);
   for(let p=0;p<freeDeck;p++){const r=pool[k2++];const L2=lab(r);if(!L2)return null;
-    dk2.push([L2[0]+L2[1],r,L2[2]]);}
+    // RULE-012: a re-deal must not launder a granted card into core supply. The rank and
+    // the suit are the director's to change; the [3] tag says where the card came from,
+    // and that is a fact about the round, not part of the plan.
+    const gr=dk[di+p]&&dk[di+p][3];
+    dk2.push(gr?[L2[0]+L2[1],r,L2[2],true]:[L2[0]+L2[1],r,L2[2]]);}
   return {rank:rank2,LB:LB2,deck:dk2};
 }
 function reDirect(){
   if(LV.live)return 'live';
   const mk=maskOf();
   if(allHit(mk[0],mk[1],wr,dk,di,LV.tgt.win,LV.tv,LV.rank))return 'intact';
+  const wilds=countWilds(dk);
   const head=dk.slice(0,di), tail=dk.slice(di);
   const deadline=Date.now()+400;
   let tries=0;
@@ -1883,7 +1954,11 @@ function reDirect(){
     const c=reassignUnseen(rnd);
     if(!c)break;
     if(allHit(mk[0],mk[1],wr,c.deck,di,LV.tgt.win,LV.tv,c.rank)){
-      LV.rank=c.rank;LV.LB=c.LB;dk=c.deck;LV.deck=c.deck.slice();replans++;return 'reshaped';}
+      LV.rank=c.rank;LV.LB=c.LB;dk=c.deck;LV.deck=c.deck.slice();replans++;
+      // RULE-009: every rung re-inserts a committed wild. reassignUnseen rebuilds the tail
+      // from the rank pool and carries no wilds, so without this the re-deal eats one.
+      preserveWilds(wilds);
+      return 'reshaped';}
   }
   LV.liveDeck=true;return 'live';
 }
@@ -2037,20 +2112,61 @@ function bandOf(){
 }
 // Try to prove a given tv from where the player actually is, re-ordering only the
 // undrawn portion of the deck. Returns the deck that worked, or null.
+// Does this rank answer the board as it stands? A snapshot of a board that moves, so it
+// is a PREFERENCE and never a gate - D-003 is the record of what happens when a forecast
+// like this is trusted as a constraint.
+function tailAnswers(r){
+  if(r===undefined||r==='')return true;              // a wild answers anything
+  for(let i=0;i<N;i++){
+    if(cl.has(i)||isPlusCard(i)||!expo(i))continue;
+    if(LV.rank[i]===undefined)continue;
+    if(cyc(LV.rank[i],r))return true;
+  }
+  return false;
+}
+// Reads the undrawn tail the way the player will meet it. The first ordering that lands
+// is overwhelmingly a tail of dead draws, and that tail is what reads as padding.
+const TAIL={pool:6, extraTries:24, deadRun:3, deadPen:11, earlyBonus:8, earlyWithin:2};
+function tailScore(d){
+  let s=0,run=0,first=-1;
+  for(let p=di;p<d.length;p++){
+    const c=d[p];
+    if(isWildCard(c)||tailAnswers(c[1])){if(first<0)first=p-di;run=0;}
+    else{run++;if(run>=TAIL.deadRun)s-=TAIL.deadPen;}   // EC_RULES.maxDeadRun, for the core deck
+  }
+  if(first>=0&&first<=TAIL.earlyWithin)s+=TAIL.earlyBonus;
+  return s;
+}
+function pickBestTail(cands){
+  let best=cands[0],bs=tailScore(cands[0]);
+  for(let i=1;i<cands.length;i++){const sc=tailScore(cands[i]);if(sc>bs){bs=sc;best=cands[i];}}
+  return best;
+}
 function proveFrom(tv,budgetMs){
   const mk=maskOf(), head=dk.slice(0,di), tail=dk.slice(di);
   if(allHit(mk[0],mk[1],wr,dk,di,LV.tgt.win,tv,LV.rank))return dk;
   const deadline=Date.now()+(budgetMs||300);
   let tries=0;
+  // The systematic sweep is deterministic - it consumes no rnd() - so collecting a few
+  // orderings here and shipping the best-read one shifts no random stream. It stops a
+  // short way past the FIRST ordering that lands, not at the end of the sweep: this runs
+  // inside a player's tap, and up to two absorbs can fire on one card, so turning the
+  // typical case into the worst case is not affordable.
+  const cands=[];let firstAt=-1;
+  const enough=function(){
+    return cands.length>=TAIL.pool||(firstAt>=0&&tries-firstAt>=TAIL.extraTries);};
   for(let p=0;p<tail.length;p++){
     for(let qi=tail.length;qi>p;qi--){
-      if(++tries>200||Date.now()>deadline)break;
+      if(++tries>200||Date.now()>deadline||enough())break;
       const nt=tail.slice(); const c=nt.splice(p,1)[0]; nt.splice(qi-1,0,c);
       const nd=head.concat(nt);
-      if(allHit(mk[0],mk[1],wr,nd,di,LV.tgt.win,tv,LV.rank))return nd;
+      if(allHit(mk[0],mk[1],wr,nd,di,LV.tgt.win,tv,LV.rank)){
+        cands.push(nd);if(firstAt<0)firstAt=tries;}
     }
-    if(Date.now()>deadline)break;
+    if(Date.now()>deadline||enough())break;
   }
+  // Anything that lands still ships. One candidate means today's answer exactly.
+  if(cands.length)return pickBestTail(cands);
   while(Date.now()<deadline&&tries<600){
     tries++;
     const nt=tail.slice();
@@ -3319,11 +3435,16 @@ function reset(){if(!LV)return;
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
-  if(typeof plusSweep==='function'&&LV&&PLUS)plusSweep();   // uncovered at deal: fires now
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
   LV.liveDeck=false;
   scrollInit();
   if(LV.live){dk=[];RUNLEFT=dRunLen();}else RUNLEFT=0;
+  // A tile with no blockers fires at the deal, and it must fire AFTER the round state is
+  // rebuilt. plusFire splices into dk and writes LV.deck back, so firing while dk is still
+  // the previous round's array deals from a corrupted deck - and the absorb result it
+  // records would then be overwritten by the reset that followed it. Latent today: every
+  // authored tile has blockers, and parseLevel warns when one does not.
+  if(typeof plusSweep==='function'&&LV&&PLUS)plusSweep();
   beat='Opening';act='Level start';
   note='The waste opens on '+LV.seedCard[0]+LV.seedCard[1]+'.';render();}
 function kpi(c,ico,lbl,val,sub){return '<div class="kpi" style="--c:'+c+'"><div class="kpi-icon">'+ico+

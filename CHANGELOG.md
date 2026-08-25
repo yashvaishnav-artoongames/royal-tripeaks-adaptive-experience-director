@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.1.0 — 2026-08-24
+
+Pacing, stages 0 and 1. Full note: `docs/versions/RELEASE_1.1.0.md`.
+
+### Added
+- Shape ranking over proved candidates. `searchPass()` collects up to `PACE.K`
+  proofs and ships the best-scoring one instead of the first that verified.
+  `paceScore()` penalises weak endings, stutter runs, dead draws in the last
+  quarter, an unresolved denial, and a front-loaded longest chain (Q-003 as a
+  preference). **D-008**: shape is a preference, never a filter — D-007 stays
+  rejected and is the reason for that shape.
+- `proveFrom()` prefers a re-ordering whose undrawn tail answers the board, rather
+  than the first that lands. **D-009**.
+- `Shape` row in the level plan: score, and how many proofs it chose between.
+
+### Changed
+- L12's plus tiles grant 2 each instead of 3 — commit `dea77fc`, revert alone to
+  restore the original supply. 1.00 draws per matchable card → 0.67.
+- `finishBuild()` shows the winning candidate's seed, not the last seed tried.
+- `gen()` returns its `gaps` layout.
+- `APP_VERSION` 1.0.3 → 1.1.0. MINOR: chain shapes and build times move.
+
+### Fixed
+- **ISSUE-009** — the verification gate could not run on a Windows checkout.
+  `core.autocrlf` rewrote `index.html` to CRLF and every harness regex wanted
+  `\n`, so all five suites died before running a case. Dead since 1.0.2.
+- **ISSUE-006** — `reassignUnseen()` stripped the granted-card tag (RULE-012).
+- **ISSUE-007** — `reDirect()`'s reshaped rung dropped a committed Wild (RULE-009).
+- **ISSUE-008** — `reset()` swept Plus Cards before rebuilding the deck.
+
+### Known issues
+ISSUE-002 (HIGH, open) — untouched, and still unmeasurable here.
+ISSUE-003 (HIGH, open), ISSUE-004 (MEDIUM, by design), ISSUE-005 (MEDIUM, open).
+
+### Verification
+    plustest 13/13 · streaktest 26/26 · colortest 11/11 · meter 9/9 · truth 18/18
+
+Plus a direct 14-pair build comparison against 1.0.3: **0 director flips, 0 target
+changes**, build time 125% of base, longest-chain-front-loaded 3/13 → 0/13,
+single-match runs 24 → 9. Sample, not library: `reg.js` is deleted, so band
+adherence and the library-wide verified/live split are unmeasured.
+
+---
+
+
 ## 1.0.3 — 2026-08-24
 
 ### Added
