@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.1.1 — 2026-08-24
+
+### Added
+- **Director toggle** in the control bar. `Director: auto` is the shipped behaviour —
+  verified director first, live only when nothing proves. Clicking it switches to
+  `Director: live (forced)`, which builds every level through the live director so its
+  steering can be watched on a level that would otherwise be proved and never reach it.
+
+  It is a testing switch and is deliberately narrow: read once in `build()`, never
+  written to `VDATA`, not persisted across a reload, and off by default. While it is on,
+  the tagline reads `Live director (forced)` and the plan panel says the verified
+  director was never asked — a level shown as live under the toggle has **not** failed
+  to verify, and nothing in the panel should be read as if it had.
+
+### Changed
+- `APP_VERSION` 1.1.0 → 1.1.1. PATCH: off by default and it moves no measured outcome.
+
+### Verification
+    plustest 13/13 · streaktest 26/26 · colortest 11/11 · meter 9/9 · truth 18/18
+
+Toggle itself measured on four level/outcome pairs that normally build verified —
+L4 Comfortable Win, L4 Close Win, L12 Comfortable Win, L6 Comfortable Win:
+
+    auto -> verified (mode 0) · forced -> live (mode 4) · auto again -> verified
+    4 of 4 forced live and restored cleanly, FORCELIVE default at load: false
+
+---
+
+
 ## 1.1.0 — 2026-08-24
 
 Pacing, stages 0 and 1. Full note: `docs/versions/RELEASE_1.1.0.md`.

@@ -383,6 +383,7 @@ td.v{font-weight:500;}
     <select id="lsel"></select>
     <select id="tsel"></select>
     <button class="pri" onclick="build()">Generate level</button>
+    <button id="flbtn" onclick="toggleForceLive()">Director: auto</button>
     <button onclick="pickFolder()">Load levels…</button>
     <input type="file" id="filein" accept=".json,application/json" multiple webkitdirectory
            style="display:none" onchange="ingest([].slice.call(this.files))">
@@ -515,7 +516,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.1.0';
+const APP_VERSION='1.1.1';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -1480,6 +1481,21 @@ const PLAN=[
   {m:0,ms:3500,msg:'Searching \u2014 verified director'},
   {live:true,  msg:'No pre-committed fit \u2014 preparing a live director'}];
 const LIVEPLAN=[{live:true,msg:'Known to need the live director \u2014 preparing'}];
+// Testing switch. The build plan normally tries the verified director first and falls to
+// live only when nothing proves, so a level that CAN be proved can never be watched under
+// live steering. This forces the live path for the level being built, and nothing else:
+// it is read once in build(), it never writes VDATA, and it does not survive a reload.
+const FORCEPLAN=[{live:true,msg:'Forced live director \u2014 preparing'}];
+let FORCELIVE=false;
+function toggleForceLive(){FORCELIVE=!FORCELIVE;renderForceLive();build();}
+function renderForceLive(){
+  const b=document.getElementById('flbtn');if(!b)return;
+  b.className=FORCELIVE?'gold':'';
+  b.textContent=FORCELIVE?'Director: live (forced)':'Director: auto';
+  b.title=FORCELIVE
+    ?'Every level is built by the live director until you switch this off. A level shown as live here has not failed to verify - it was never offered to the verified director.'
+    :'Verified director first, live only when nothing proves. Click to force live steering for testing.';
+}
 let VDATA={};
 try{const st=localStorage.getItem('tp_vdata');if(st)VDATA=JSON.parse(st);}catch(e){}
 function vkey(short,ti){return short+'|'+ti;}
@@ -1511,7 +1527,7 @@ function build(){
     const t=vals[i];vals[i]=vals[j];vals[j]=t;}
   const deadv=[];for(let q=tgt.lo;q<=tgt.hi;q++)if(vals.indexOf(q)<0)deadv.push(q);
   const known=VDATA[vkey(L.short,+document.getElementById('tsel').value)];
-  const plan=(known&&known.d==='L')?LIVEPLAN:PLAN;
+  const plan=FORCELIVE?FORCEPLAN:((known&&known.d==='L')?LIVEPLAN:PLAN);
   BUILDING={tgt:tgt,vals:vals,deadv:deadv,out:null,sd:0,usedMode:0,stage:0,plan:plan,cached:!!known};
   setBusy(plan[0].msg);
   sched(buildTick);
@@ -1650,7 +1666,7 @@ function finishBuild(){
   if(!LV.base.rank){const r={};for(let i=0;i<N;i++)r[i]=LV.rank[i];
     LV.base.rank=r;LV.base.LB=LV.LB.slice();LV.base.deck=LV.deck.slice();}
   TL.className='tag'+(out.usedMode===4?' live':'');
-  TL.textContent=out.usedMode===4?'Live director':'Verified';
+  TL.textContent=out.usedMode===4?(FORCELIVE?'Live director (forced)':'Live director'):'Verified';
   const row=(a,b)=>'<tr><td class="k">'+a+'</td><td class="v">'+b+'</td></tr>';
   P.innerHTML=row('Level',STRUCT)+
     row('Outcome','<span class="day-tag">'+out.tgt.d(out.tv)+'</span>')+
@@ -1678,9 +1694,15 @@ function finishBuild(){
       '<tr><td class="k">Priority</td><td class="v">Streak denial \u2014 core logic, every level</td></tr>'+
       '<tr><td class="k">Aiming at</td><td class="v">'+out.tv+', corrected as you play</td></tr>'+
       '<tr><td class="k">Director</td><td class="v">'+DIRLABEL[4]+
+        (FORCELIVE?' <span class="dnote">forced for testing — the verified director was never '+
+          'asked, so this says nothing about whether the level can be proved</span>':'')+
         (B.cached?' <span class="dnote">from saved validation</span>':'')+'</td></tr>';
     PR.className='highlights amber';
-    PR.innerHTML='<p>No pre-committed arrangement could hit this target, so the level runs under a '+
+    PR.innerHTML='<p>'+(FORCELIVE
+      ?'The director toggle is set to <b>forced live</b>, so the verified director was never asked '+
+       'about this level. It may well be provable — switch the toggle back to auto to find out. '+
+       'While forced, the level runs under a '
+      :'No pre-committed arrangement could hit this target, so the level runs under a ')+
       '<b>live director</b>. Every face-down card and every deck card is left undecided and given its '+
       'rank at the moment it is revealed, steering toward the band above.</p>'+
       '<p>Only cards the player has never seen can be set. Once a card is face up it is fixed, and it '+
@@ -3769,6 +3791,7 @@ ts.value=1;ls.value=2;
 window.addEventListener('resize',function(){FITTED=false;if(LV)render();});
 ecApplyIntensity(0.5);   // the table is the source of truth, not the literals above it
 document.getElementById('sd').textContent='v'+APP_VERSION;
+renderForceLive();
 useLevel(2);build();
 </script>
 </body>
