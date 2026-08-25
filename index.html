@@ -446,12 +446,13 @@ td.v{font-weight:500;}
 .udb{position:relative;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:.06em;width:100%;height:100%;line-height:1;color:#1a1d23;}
 .udc.red .udb{color:#dc2626;}
-.udb .sy{position:absolute;right:.15em;top:.1em;font-size:.5em;line-height:1;}
-.udb .gh{font-size:.58em;font-weight:700;color:#cfd3dc;}
-/* 1.12em, not 1.2: a two-character rank plus the arrow has to fit the same box a single
-   digit does, and 10 is the widest thing this card can ever show. */
-.udb .rk{font-size:1.12em;font-weight:800;display:flex;align-items:flex-start;gap:.04em;}
-.udb .rk .ar{font-size:.46em;line-height:1.25;}
+.udb .sy{position:absolute;right:.14em;top:.1em;font-size:.62em;line-height:1;}
+.udb .gh{font-size:.64em;font-weight:700;color:#cfd3dc;}
+/* align-items:center, NOT flex-start. flex-start pins the arrow to the cap height of the
+   digit, which reads as a superscript hanging off the corner; the arrow belongs on the
+   digit's own centre line, beside it rather than above it. */
+.udb .rk{font-size:1.3em;font-weight:800;display:flex;align-items:center;gap:.06em;}
+.udb .rk .ar{font-size:.5em;line-height:1;}
 /* The per-step tell. The shipping build has this written and commented out, which is why
    these levels read as random rather than tricky: the rank changes by a silent sprite swap
    and nothing draws the eye to the moment your target moved. Box-shadow only - .pc carries
