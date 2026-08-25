@@ -31,8 +31,25 @@ body{font-family:'Lexend',sans-serif;background:#eef0f5;color:#1a1d23;font-size:
 button:disabled{opacity:.45;cursor:progress;}
 
 .ctlbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:0 0 auto;}
-select{font-family:inherit;font-size:11.5px;font-weight:500;padding:8px 12px;border-radius:18px;
-  border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;cursor:pointer;}
+/* One height for every control in the bar. Equal padding is necessary but not sufficient:
+   the Suits pill is a flex box wrapping a 4px-tall range input, so its content box comes
+   out shorter than the text line box that sets a button's height. align-items:center on
+   the bar means nothing stretches to match, so the height has to be stated. */
+.ctlbar select,.ctlbar button,.ctlbar .mixctl{min-height:33px;}
+/* The native select arrow is painted at the far edge of the control and ignores
+   padding-right, so on an 18px pill it sits in the curve with nowhere to breathe. Turn the
+   native appearance off and draw the chevron as a positioned background instead: inset
+   14px, clear of the radius, with room reserved on the right so a long option name cannot
+   run underneath it. The shorthand background:#fff has to come BEFORE background-image or
+   it resets it. */
+select{font-family:inherit;font-size:11.5px;font-weight:500;padding:8px 34px 8px 14px;
+  border-radius:18px;border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;cursor:pointer;
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:9px 6px;}
+select::-ms-expand{display:none;}
+/* appearance:none takes the native focus ring with it, so put one back. */
+select:focus-visible{outline:none;border-color:#3b5bdb;}
 button{font-family:inherit;font-size:11.5px;font-weight:600;padding:8px 16px;border-radius:18px;
   border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;cursor:pointer;white-space:nowrap;}
 button:hover:not(:disabled){background:#f8f9fc;}
@@ -40,7 +57,7 @@ button:disabled{opacity:.35;cursor:default;}
 /* The colour dial. The track runs red to black through neutral, so the control shows what
    it does before the number is read - dragging left is dragging toward red. */
 .mixctl{display:inline-flex;align-items:center;gap:9px;font-size:11.5px;font-weight:600;
-  padding:6px 14px;border-radius:18px;border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;}
+  padding:8px 14px;border-radius:18px;border:1.5px solid #e8eaed;background:#fff;color:#1a1d23;}
 .mixctl .mixlab{color:#6b7280;}
 .mixctl .mixval{min-width:58px;text-align:right;font-variant-numeric:tabular-nums;}
 .mixctl input[type=range]{-webkit-appearance:none;appearance:none;width:94px;height:4px;
