@@ -246,3 +246,55 @@ Impact: `LOCKS`/`KEYS`, `isLKSlot`, `lkFirst`/`lkReady`/`lkTap`/`lkCollect`/`lkR
 win/lose/dead-end test, `skipToEnd()`, `mainAct()`, `bends`; the `FishCards` importer; and
 L7 as a built-in level. Visual language follows D-012's rule — the face identifies the tile
 and never changes, only the edge moves.
+
+---
+
+**D-014 — Up & Down keeps its card identity, and the demo gives it the tell shipping withheld**
+Status: APPROVED · Version: 1.1.1+ · Relates: D-013, D-012
+
+Decision: the Up & Down card enters the demo as **an ordinary card in every accounting sense**,
+its clock is driven by **completed moves only**, and the demo **shows each step** even though
+the shipping build does not.
+
+**It stays a card.** Unlike the other three obstacles this one is matched by the normal
+rank-adjacency rule, clears like any card, costs nothing and grants nothing. So it stays
+inside `MATCHN` and inside `SUP`, `legals()` needs no exclusion, and it goes through `play()`
+untouched. That is the one thing about this obstacle needing no caveat, and the temptation to
+give it a special case should be resisted.
+
+**The clock is moves, not time.** `udTick` fires from exactly four places — a match, a deck
+draw, a burnt draw, and spending a wild — and steps every tile that is revealed and on-screen
+by ±1 on the closed thirteen-rank ring. A covered tile is frozen, so a tile's clock starts
+when it is *revealed*: two tiles authored with the same direction drift apart permanently if
+they are uncovered on different moves, and nothing records when that was. The set of tiles to
+step is captured **before** the move uncovers anything, because a tile revealed by this move
+does not step on this move.
+
+**The pool follows the face.** A tick repaints the same physical card, so the deck's
+composition is unchanged — but what the board *shows* changes, and the live director picks
+future cards from that. `udTick` hands the old rank back to `LV.pool` and takes the new one,
+so the director's supply model stays truthful as the tiles walk.
+
+**Live-only, and this is the strongest case of the four.** A proof from `exh()` is a statement
+about fixed ranks. An Up & Down tile makes the rank a function of the move number, so every
+line the prover explored describes a board that no longer exists by the time it is reached.
+The level joins the other three in `bends`.
+
+**The per-step tell is added deliberately.** The shipping build has the punch-scale feedback
+written and commented out, so the rank changes by a silent sprite swap with nothing drawing
+the eye. The doc names this as the first thing to check if these levels read as random rather
+than tricky. The demo flashes the tile and the note says how many stepped — the point of the
+demo is to make the director's world legible, and an invisible state change is the opposite
+of that. Implemented as `box-shadow` only, because `.pc` carries an inline `rotate` and
+animating `transform` would throw a rotated card straight.
+
+Two divergences from shipping, both stated rather than hidden. **Undo is exact**: `snap()`
+already carries `lrank`/`llb`/`lpool`, so `back()` restores ranks rather than re-stepping
+them, which sidesteps shipping's reveal-during-undo asymmetry — a defect with no design
+content. And on the deck path the tick lands **after** the draw is committed rather than
+before the director mints, because ticking earlier would leave tiles stepped on every path
+where the draw aborts and pops its own snapshot.
+
+Impact: `UPDN`/`UDN`/`UDFLASH`, `isUDSlot`, `udWrap`, `udLive`, `udTick`; `play()`, `draw()`,
+`miss1()`, `useWild()`, `useLevel()`, the render branch, `bends`; the `IncrementalCards`
+importer, which refuses any `Value` other than ±1; and L41 as a built-in level.

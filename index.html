@@ -433,6 +433,30 @@ td.v{font-weight:500;}
 @keyframes lkp{0%,100%{box-shadow:0 0 0 0 rgba(219,39,119,.55)}
   70%{box-shadow:0 0 0 8px rgba(219,39,119,0)}}
 .pc.lkc.lkrdy{border-color:#db2777;animation:lkp 1.5s ease-out infinite;cursor:pointer;}
+/* Up & Down. The whole card is a window onto the rank ring: the number it is leaving
+   above, the number it shows now in the middle, the number it moves to next below. Reading
+   downward is reading forward in time, whichever way the tile counts - so an up card at 7
+   shows 6/7/8 and a down card at 7 shows 8/7/6. It keeps an ordinary card face and border,
+   because it IS an ordinary matchable card; only what it is worth moves. */
+.pc.udc{background:#fff;border:1.5px solid #d7dae3;}
+.udb{position:relative;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;width:100%;height:100%;line-height:1;}
+.udb .sy{position:absolute;left:.15em;top:.11em;font-size:.5em;color:#1a1d23;}
+.udc.red .udb .sy{color:#dc2626;}
+/* The direction arrow is not in the reference sheet, and it is here because the reel alone
+   cannot say which way time runs on a single glance - the ghosts are symmetrical to anyone
+   who has not been told the convention. */
+.udb .ar{position:absolute;right:.15em;top:.1em;font-size:.44em;font-weight:800;color:#9aa1ad;}
+.udb .gh{font-size:.6em;font-weight:700;color:#c9ccd6;}
+.udb .rk{font-size:1.18em;font-weight:800;color:#1a1d23;margin:.05em 0;}
+.udc.red .udb .rk{color:#dc2626;}
+/* The per-step tell. The shipping build has this written and commented out, which is why
+   these levels read as random rather than tricky: the rank changes by a silent sprite swap
+   and nothing draws the eye to the moment your target moved. Box-shadow only - .pc carries
+   an inline rotate, and animating transform here would throw a rotated card straight. */
+@keyframes udpop{0%{box-shadow:0 0 0 0 rgba(217,119,6,.6)}
+  100%{box-shadow:0 0 0 8px rgba(217,119,6,0)}}
+.pc.udc.udf{animation:udpop .52s ease-out;}
 .plusb{display:flex;flex-direction:column;align-items:center;justify-content:center;
   width:100%;height:100%;line-height:1;}
 .plusb .pv{font-size:22px;font-weight:800;letter-spacing:-1px;color:#3c3489;line-height:1;}
@@ -629,7 +653,16 @@ const LEVELS=[
  pos:[[-49,109],[48,109],[-49,-34],[48,-34],[-383,38],[-244,38],[-314,38],[383,38],[244,38],[314,38],[0,38]],
  rot:[0,0,0,0,30,330,0,330,30,0,0],
  dep:DD([[0,[10]],[1,[10]],[2,[10]],[3,[10]],[4,[6]],[5,[6]],[6,[]],[7,[9]],[8,[9]],[9,[]],[10,[]]]),
- key:[8],lock:[10]}
+ key:[8],lock:[10]},
+// The earliest level that uses up and down. Slot 6 counts DOWN and slot 13 counts UP, both
+// top-layer and mirrored across the board, so both clocks start on move one and the two
+// ranks separate by two every move. Neither of the cards they uncover is itself an up/down
+// tile, so this level never exercises the reveal-during-undo asymmetry.
+{name:'L41 \u2014 14 cards, deck 14 \u00b7 up and down',short:'L41',N:14,deckN:14,scroll:false,
+ pos:[[-165,132],[-165,50],[-216,-17],[-116,-17],[-264,38],[-66,38],[-165,-66],[165,-56],[165,26],[114,93],[214,93],[66,38],[264,38],[165,142]],
+ rot:[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+ dep:DD([[0,[1]],[1,[3,2]],[2,[6,4]],[3,[5,6]],[4,[]],[5,[]],[6,[]],[7,[8]],[8,[10,9]],[9,[13,11]],[10,[12,13]],[11,[]],[12,[]],[13,[]]]),
+ ud:{"6":-1,"13":1}}
 ];
 const OUT=[
 {n:'Comfortable Win',win:true,lo:4,hi:6,d:v=>'Comfortable Win \u2014 exactly '+v+' draws unused'},
@@ -678,6 +711,24 @@ let LOCKS=new Set(), KEYS=new Set();
 const isLockSlot=i=>LOCKS.has(i);
 const isKeySlot=i=>KEYS.has(i);
 const isLKSlot=i=>LOCKS.has(i)||KEYS.has(i);
+// Up & Down: an ORDINARY matchable card whose rank moves by one every time the player makes
+// a move. No trigger, no payout, no removal path of its own - it never activates at all. The
+// only obstacle in the set that is purely a timing puzzle, and the only cost it imposes is
+// informational: the board you planned against is not the board you tap on.
+// UPDN maps slot to the step, always +1 (up) or -1 (down). It is arithmetic, not a role id.
+let UPDN={}, UDN=0, UDFLASH=new Set();
+const isUDSlot=i=>UPDN&&UPDN[i]!==undefined;
+// The ring is closed: King steps to Ace, Ace steps to King, so a tile cycles through all
+// thirteen ranks and is never used up. Clamping rather than modulo is enough only because
+// the step is always one - a step of two would silently skip a rank at the boundary.
+const udWrap=n=>n>13?1:(n<1?13:n);
+// Frozen while covered. A tile's clock starts when it is REVEALED, so two tiles authored
+// with the same direction drift apart if they are uncovered on different moves, and nothing
+// anywhere records when that was.
+function udLive(){const a=[];
+  for(const key in UPDN){const i=+key;
+    if(!cl.has(i)&&expo(i)&&onScreen(i))a.push(i);}
+  return a;}
 const LKSVG={
   lock:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6a5.2 5.2 0 0 0-5.2 5.2V10h2.5V6.8a2.7 2.7 0 0 1 5.4 0V10h2.5V6.8A5.2 5.2 0 0 0 12 1.6z"/>'+
     '<path fill-rule="evenodd" d="M5.4 10h13.2c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5.4c-1 0-1.8-.8-1.8-1.8v-8.6c0-1 .8-1.8 1.8-1.8zm6.6 3.5a1.7 1.7 0 0 0-.9 3.1l-.5 2.2a.6.6 0 0 0 .6.7h1.6a.6.6 0 0 0 .6-.7l-.5-2.2a1.7 1.7 0 0 0-.9-3.1z"/></svg>',
@@ -709,6 +760,9 @@ function useLevel(ix){
   // and outside the rank supply. A double slot needs a PAIR, always two adjacent high ranks.
   WILDS=new Set(L.wild||[]);DBLS=new Set(L.dbl||[]);
   LOCKS=new Set(L.lock||[]);KEYS=new Set(L.key||[]);LKDONE=[];
+  // An up/down tile IS a real card: it consumes supply and the player has to match it, so
+  // unlike the other three obstacles it stays inside both MATCHN and SUP.
+  UPDN=L.ud||{};UDN=Object.keys(UPDN).length;UDFLASH=new Set();
   // Plus tiles are not a surprise to the director - their firing is a pure function of
   // the cleared set, and on any line that clears the board every one of them fires. So
   // the deck the level is really planned against is the authored deck plus their total.
@@ -755,7 +809,8 @@ function useLevel(ix){
       ' \u2192 '+MATCHN+' to match, up to '+(DRAWS+PLUSTOTAL)+' draws'):'')+
     (LKTILES?(' \u00b7 '+Math.min(KEYS.size,LOCKS.size)+' lock and key pair'+
       (Math.min(KEYS.size,LOCKS.size)===1?'':'s')+' ('+LKTILES+' tiles, never matched, '+
-      MATCHN+' to match)'):'');
+      MATCHN+' to match)'):'')+
+    (UDN?(' \u00b7 '+UDN+' up/down card'+(UDN===1?'':'s')+', stepping once per move'):'');
 }
 let RSEED=(Date.now()^0x9e3779b9)>>>0;
 function srand(s){RSEED=(s>>>0)||1;}
@@ -1622,6 +1677,28 @@ function lkCollect(key,lock){
   n+='Undo history is cleared by a pair collect.';
   note=n;
   render();}
+// The clock. Every completed move steps every revealed, on-screen tile by exactly one:
+// a match, a deck draw, or spending a wild. Not a timer, not a trigger, and never a tap on
+// the tile itself - it is a bystander that moves because something else happened, which is
+// exactly what makes it hard to plan against. `pre` is the eligible set captured BEFORE the
+// move revealed anything, because a tile uncovered by this move does not step on this move.
+function udTick(dir,pre){
+  if(!UDN||!LV)return 0;
+  const list=pre||udLive();
+  let n=0;
+  for(const i of list){
+    if(cl.has(i)||LV.rank[i]===undefined)continue;
+    const was=LV.rank[i], r=udWrap(was+UPDN[i]*dir);
+    LV.rank[i]=r;
+    // The suit never moves - only the rank does - so the label keeps its pip and its colour.
+    const L=LV.LB[i];if(L)LV.LB[i]=[RN[r],L[1],L[2]];
+    // The physical card is the same card being repainted, so the deck's composition does not
+    // change - but what the BOARD shows does, and the live director picks future cards from
+    // that. Hand the old rank back and take the new one so the model stays truthful.
+    if(LV.pool){LV.pool[was]=(LV.pool[was]||0)+1;LV.pool[r]=(LV.pool[r]||0)-1;}
+    UDFLASH.add(i);n++;}
+  if(n&&!SILENT)setTimeout(function(){UDFLASH=new Set();render();},520);
+  return n;}
 const legals=()=>{const a=[];
   for(let i=0;i<N;i++){
     if(isPlusCard(i))continue;                  // a plus tile is never a match target
@@ -1697,7 +1774,7 @@ function build(){
   // carrying either, the prover would be proving a game nobody plays. That is exactly the
   // defect already recorded for plus tiles. Until exh() models them, decline: a level with
   // no proof makes no promise, which is strictly better than a promise that is not true.
-  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0);
+  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0||UDN>0);
   const plan=(FORCELIVE||bends)?FORCEPLAN:((known&&known.d==='L')?LIVEPLAN:PLAN);
   BUILDING={tgt:tgt,vals:vals,deadv:deadv,out:null,sd:0,usedMode:0,stage:0,plan:plan,cached:!!known};
   setBusy(plan[0].msg);
@@ -1947,6 +2024,9 @@ function back(){if(!stack.length)return;
   STREAK_GRANTED=s.sg;STREAK_REWARDS=s.sr;COINS=s.coins;
   render();}
 function play(i){snap();const ww=wild;wild=false;
+  // Captured before cl.add: a tile this match is about to uncover must not step on the
+  // move that uncovers it.
+  const udPre=udLive();
   const lab=isWildSlot(i)?['WILD','',false]:LV.LB[i];
   cl.add(i);scrollAdvance();
   // A collected wild becomes the head and then takes almost anything - that IS the
@@ -1985,9 +2065,12 @@ function play(i){snap();const ww=wild;wild=false;
   // the match may have uncovered one or more plus tiles; they fire immediately, and one
   // can uncover the next
   const pfired=plusSweep();
+  const udn=udTick(1,udPre);
   beat=lf===0?'Payoff':(k>=PIPS?'Surge':(k>=3?'Momentum':(rv>=2?'Discovery+':(rv>=1?'Discovery':'Play'))));
   const n=[];if(ww)n.push('Played on the Wild \u2014 streak continued.');
   n.push(rv>0?('Unblocks '+rv+' card'+(rv>1?'s':'')+'.'):'Nothing new opens.');
+  if(udn)n.push(udn+' up/down card'+(udn===1?'':'s')+' stepped \u2014 the move you made to '+
+    'get there is what moved them.');
   if(k%PIPS===0){
     const r=STK_LAST;
     if(!r)n.push('Meter complete \u2014 reward paid, counter resets.');
@@ -2014,7 +2097,10 @@ function play(i){snap();const ww=wild;wild=false;
   note=n.join(' ');render();}
 function useWild(){snap();wild=true;wr=WILD_RANK;wx++;wl=['WILD','',false];log.push({t:'w'});
   act='Spend a Wild';beat='Wild';
-  note='Any exposed card is legal now and the streak keeps running \u2014 pick one. '+
+  // Spending a wild is the third thing the shipping build counts as a move.
+  const udn=udTick(1);
+  note=(udn?(udn+' up/down card'+(udn===1?'':'s')+' stepped. '):'')+
+    'Any exposed card is legal now and the streak keeps running \u2014 pick one. '+
     (LV.live?'The director will adapt what you have not seen yet.'
            :'This steps off the proved line, so the deck will be re-ordered afterwards to hold the target.');
   render();}
@@ -2030,6 +2116,12 @@ function draw(){snap();wild=false;
   if(isWildCard(d)){wl=['WILD','',false];wr=WILD_RANK;wild=true;}
   else{wl=[d[0],'',d[2]];wr=d[1];}
   k=0;stkReset();
+  // A draw is a move, so it ticks. Shipping ticks BEFORE it manipulates the drawn card,
+  // so its director reads post-tick ranks; here the tick lands after the draw is committed
+  // instead, because ticking earlier would leave the tiles stepped on every path where the
+  // draw aborts and pops its own snapshot. State integrity over an ordering the source
+  // itself leaves undocumented.
+  const udn=udTick(1);
   if(ecInRescue()&&EC){
     const nw=[];for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
     ecReveal(nw);}
@@ -2054,6 +2146,7 @@ function miss1(){if(!legals().length){draw();return;}
   if(isWildCard(d)){wl=['WILD','',false];wr=WILD_RANK;wild=true;}
   else{wl=[d[0],'',d[2]];wr=d[1];}
   k=0;stkReset();
+  udTick(1);   // a burnt draw is still a move
   if(ecInRescue()&&EC){
     const nw=[];for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
     ecReveal(nw);}
@@ -3770,6 +3863,18 @@ function render(){
         Math.max(13,Math.round(CW*0.38))+'px">+'+v+'</span>'+
         (small?'':'<span class="pl">PLUS<br>CARD</span>')+'</span>';
       cls+=' plusc';}
+    else if(isUDSlot(i)&&show&&LV.rank[i]!==undefined){
+      // Ordinary card face, ordinary border - it is an ordinary card. The window shows the
+      // rank it is leaving, the rank it is worth now, and the rank it moves to next.
+      const r=LV.rank[i],st=UPDN[i],L=LV.LB[i];
+      body='<span class="udb">'+
+        '<span class="sy">'+(L?L[1]:'')+'</span>'+
+        '<span class="ar">'+(st>0?'\u25b2':'\u25bc')+'</span>'+
+        '<span class="gh">'+RN[udWrap(r-st)]+'</span>'+
+        '<span class="rk">'+RN[r]+'</span>'+
+        '<span class="gh">'+RN[udWrap(r+st)]+'</span></span>';
+      cls+=' udc'+((L&&L[2])?' red':'')+(UDFLASH.has(i)?' udf':'');
+      if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
     else if(isLKSlot(i)&&show){
       // A COVERED lock or key is indistinguishable from an ordinary face-down card - no
       // badge, no marker. That is deliberate in the shipping build: the player cannot see
@@ -4029,6 +4134,31 @@ function parseLevel(nm,raw){
     if(plus[i]!==undefined)warn.push('slot '+i+' is both a Plus Card and a Lock/Key tile');
     if(wildc.indexOf(i)>=0)warn.push('slot '+i+' is both Wild and a Lock/Key tile');
     if(dblc.indexOf(i)>=0)warn.push('slot '+i+' is both Double Value and a Lock/Key tile');}
+  // Up & Down: an ordinary matchable card whose rank steps by one on every player move.
+  // Value is arithmetic, not a role id - it is multiplied into the rank - and every one of
+  // the shipping entries is exactly +1 or -1. Anything else is refused here: the wrap clamps
+  // a single step out of range rather than taking a modulo, so a step of two would silently
+  // skip a rank at the King/Ace boundary, and a step of zero is an arrow that never moves.
+  const ud={};
+  for(const e of (d.IncrementalCards||[])){
+    const idx=(typeof e.index==='number')?e.index:undefined;
+    const val=(typeof e.Value==='number')?e.Value:undefined;
+    if(idx===undefined||val===undefined){
+      warn.push('IncrementalCards entry missing index or Value: '+JSON.stringify(e));continue;}
+    if(idx<0||idx>=N){warn.push('IncrementalCards index '+idx+' is outside 0\u2013'+(N-1));continue;}
+    if(val!==1&&val!==-1){
+      warn.push('IncrementalCards index '+idx+' has Value '+val+
+        ' \u2014 only +1 (up) and -1 (down) are safe; the rank wrap tolerates one step, so any '+
+        'other value skips a rank at the King/Ace boundary');continue;}
+    if(ud[idx]!==undefined){warn.push('duplicate IncrementalCards entry for index '+idx);continue;}
+    ud[idx]=val;}
+  for(const key in ud){const i=+key;
+    if(plus[i]!==undefined)warn.push('slot '+i+' is both a Plus Card and an Up/Down card');
+    if(wildc.indexOf(i)>=0)warn.push('slot '+i+' is both Wild and Up/Down \u2014 a wild has no rank to step');
+    if(dblc.indexOf(i)>=0)warn.push('slot '+i+' is both Double Value and Up/Down');
+    if(keyc.indexOf(i)>=0||lockc.indexOf(i)>=0)
+      warn.push('slot '+i+' is both Lock/Key and Up/Down \u2014 a lock or key is never matched, '+
+        'so a stepping rank on it is invisible and pointless');}
   const deckN=Number(d.NumberOfDeckCards||0);
   // A stripped export may omit IsScrollableLevel. It can be recovered from the rightmost card:
   // a fixed board is centred and tops out near 524, a scrolling one is anchored at -400 and runs
@@ -4044,7 +4174,7 @@ function parseLevel(nm,raw){
   if(!d.NumberOfDeckCards)warn.push('NumberOfDeckCards is missing or zero');
   return {name:nm+' \u2014 '+N+' cards, deck '+deckN,short:nm,N:N,deckN:deckN,
           pos:pos,rot:rot,dep:dep,warn:warn,scroll:scroll,scrollInferred:scrollInferred,
-          plus:plus,wild:wildc,dbl:dblc,lock:lockc,key:keyc};
+          plus:plus,wild:wildc,dbl:dblc,lock:lockc,key:keyc,ud:ud};
 }
 function natsort(a,b){
   const sa=a.short.replace(/\d+/g,''),sb=b.short.replace(/\d+/g,'');
