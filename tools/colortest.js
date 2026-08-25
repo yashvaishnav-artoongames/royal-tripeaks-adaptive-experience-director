@@ -1,6 +1,6 @@
 const fs=require('fs');
 const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
-const m=src.match(/<script>\n"use strict";([\s\S]*?)<\/script>/);
+const m=src.match(/<script>\r?\n"use strict";([\s\S]*?)<\/script>/);
 let js=m[1].replace(/const ls=document\.getElementById\('lsel'\)[\s\S]*$/,'');
 const ids=[...new Set([...src.matchAll(/id="([a-zA-Z0-9]+)"/g)].map(x=>x[1]))];
 const store={};const mk=id=>({id:id,innerHTML:'',textContent:'',className:'',style:{},value:'0',

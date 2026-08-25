@@ -4,7 +4,7 @@ const BASE=process.env.AED_BASELINE||ROOT;
 // parseLevel() so the bot and the app cannot disagree about what a level file means.
 const fs=require('fs'),path=require('path');
 const src=fs.readFileSync(require('path').join(__dirname,'..','index.html'),'utf8');
-const m=src.match(/<script>\n"use strict";([\s\S]*?)<\/script>/);
+const m=src.match(/<script>\r?\n"use strict";([\s\S]*?)<\/script>/);
 let js=m[1].replace(/const ls=document\.getElementById\('lsel'\)[\s\S]*$/,'');
 const ids=[...new Set([...src.matchAll(/id="([a-zA-Z0-9]+)"/g)].map(x=>x[1]))];
 const store={};const mk=id=>({id:id,innerHTML:'',textContent:'',className:'',title:'',
