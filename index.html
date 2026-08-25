@@ -620,6 +620,13 @@ let WILDS=new Set(), DBLS=new Set();
 const isWildSlot=i=>WILDS.has(i);
 const isDblSlot=i=>DBLS.has(i);
 const secondOf=r=>(r===13?1:r+1);
+// Exactly six double value cards exist: QJ, KQ and AK, each as a black pair and a red
+// pair. Three roots, two colour families. So a double slot's root can ONLY be J, Q or K -
+// give it a 7 and the card reads 8/7, which the game has no art for and cannot deal.
+// This is a hard constraint on every path that assigns a rank, not a preference.
+const DBLROOTS=[11,12,13];
+const dblRoot=r=>DBLROOTS.indexOf(r)>=0;
+const dblFilter=(i,arr)=>isDblSlot(i)?arr.filter(dblRoot):arr;
 // Does slot i answer a waste of rank w? The one place the two obstacles change the rule.
 function slotTakes(i,w){
   if(isWildSlot(i))return w!==WILD_RANK;      // wild on wild is refused
@@ -928,7 +935,7 @@ function gen(tgt,tv,rng,mode){
       bar(null);}
     if(rmv.size!==T)return fail('coverage');
     for(let i=0;i<N;i++)if(rank[i]===undefined){
-      const c=allow(i,ALL.filter(r=>sup[r]>0));if(!c.length)return fail('supply');
+      const c=dblFilter(i,allow(i,ALL.filter(r=>sup[r]>0)));if(!c.length)return fail('supply');
       const r=rich(c);rank[i]=r;sup[r]--;}
     const sc=nb(firstRank[0]).filter(x=>sup[x]>0);
     if(!sc.length)return fail('supply');
@@ -980,7 +987,8 @@ function gen(tgt,tv,rng,mode){
       const n2=pk(e2),r2=step(c);rank[n2]=r2;sup[r2]--;rmv.add(n2);setDir(w,r2);w=r2;ev.push({t:'p',i:n2});}}
   if(rmv.size!==T)return fail('coverage');
   for(let i=0;i<N;i++)if(rank[i]===undefined){
-    const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');const r=rich(c);rank[i]=r;sup[r]--;}
+    const c=dblFilter(i,ALL.filter(r=>sup[r]>0));if(!c.length)return fail('supply');
+    const r=rich(c);rank[i]=r;sup[r]--;}
   const sp=[];for(let i=0;i<(tgt.win?tv:0);i++){
     const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');const r=rich(c);sup[r]--;sp.push(r);}
   const usd={};ALL.forEach(r=>usd[r]=0);
@@ -1277,8 +1285,8 @@ function genLive(tgt,tv){
     if(!c.length)c=ALL.filter(r=>pool[r]>0);
     // A double root must be J, Q or K, or its second value is not the adjacent rank the
     // obstacle is defined as. L111's double card IS a root, so this is the live path for it.
-    if(isDblSlot(rt)){const hi=[11,12,13].filter(function(x){return pool[x]>0;});
-      if(hi.length)c=hi;}
+    if(isDblSlot(rt)){let hi=DBLROOTS.filter(function(x){return pool[x]>0;});
+      if(!hi.length)hi=DBLROOTS;c=hi;}
     const r=pick(c);if(r===undefined)return null;
     pool[r]--;rank[rt]=r;LB[rt]=lab(r);first=false;}
   const bd=liveBand(tgt);
@@ -1299,8 +1307,10 @@ function dBind(i,r){
   // A double card is always two ADJACENT ranks, the second being the first plus one with
   // King wrapping to Ace - so the first must be J, Q or K. Shipping rolls this at load;
   // here the director assigns it, which is the premise of the whole project.
-  if(isDblSlot(i)){const w=[11,12,13].filter(function(x){return LV.pool[x]>0;});
-    if(w.length)r=w[Math.floor(rnd()*w.length)];}
+  // An over-drawn Queen is a supply rounding error and recoverable. A 7 here is a card
+  // that does not exist, so the root stays in DBLROOTS even when supply says no.
+  if(isDblSlot(i)){let w=DBLROOTS.filter(function(x){return LV.pool[x]>0;});
+    if(!w.length)w=DBLROOTS;r=w[Math.floor(rnd()*w.length)];}
   LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r);}
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
@@ -1984,9 +1994,19 @@ function reassignUnseen(rng){
   const rank2={},LB2=[];
   for(let i=0;i<N;i++){rank2[i]=LV.rank[i];LB2[i]=LV.LB[i];}
   let k2=0;
-  for(const i of hid){const r=pool[k2++];const L1=lab(r);if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
+  // Pull the next card that SUITS the slot rather than simply the next card: a hidden
+  // double slot needs a J, Q or K. Swapping the match down to k2 keeps the rest of the
+  // shuffled order intact, so an ordinary slot still gets what it would have got.
+  const takeAt=function(ok){
+    for(let q=k2;q<pool.length;q++)if(!ok||ok(pool[q])){
+      const v=pool[q];pool[q]=pool[k2];pool[k2]=v;return pool[k2++];}
+    return undefined;};
+  for(const i of hid){const r=takeAt(isDblSlot(i)?dblRoot:null);
+    if(r===undefined)return null;
+    const L1=lab(r);if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
   const dk2=dk.slice(0,di);
-  for(let p=0;p<freeDeck;p++){const r=pool[k2++];const L2=lab(r);if(!L2)return null;
+  for(let p=0;p<freeDeck;p++){const r=takeAt(null);if(r===undefined)return null;
+    const L2=lab(r);if(!L2)return null;
     // RULE-012: a re-deal must not launder a granted card into core supply. The rank and
     // the suit are the director's to change; the [3] tag says where the card came from,
     // and that is a fact about the round, not part of the plan.
