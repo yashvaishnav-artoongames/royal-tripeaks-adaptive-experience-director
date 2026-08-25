@@ -3595,8 +3595,13 @@ function render(){
     const show=e||TG.reveal||isWildSlot(i);   // a wild is face-up from the deal, always
     let cls='pc'+(g?' gh':pl?(' pl'+(pick?' clk':'')):show?'':' dn');
     const zi=g?1:(pl?400:(10+(100-DPT[i])));
-    let st='left:'+lx(i)+'px;top:'+ty(i)+'px;width:'+CW+'px;height:'+CH+'px;z-index:'+
-      zi+';transform:rotate('+ROT[i]+'deg);font-size:'+Math.max(10,Math.round(CW*0.29))+'px;';
+    // A double value card renders 1.35x, grown about its own centre so it still sits on
+    // its slot - the extra chip is what makes it identifiable at a glance, and the 0.175
+    // half-overhang is the same figure the shipping build subtracts from the scroll clamp.
+    const dz=isDblSlot(i)&&!cl.has(i), dw=dz?CW*1.35:CW, dh=dz?CH*1.35:CH;
+    let st='left:'+(lx(i)-(dw-CW)/2)+'px;top:'+(ty(i)-(dh-CH)/2)+'px;width:'+dw+'px;height:'+dh+
+      'px;z-index:'+(dz?(zi+50):zi)+';transform:rotate('+ROT[i]+'deg);font-size:'+
+      Math.max(10,Math.round(dw*0.29))+'px;';
     if(!g&&!e&&TG.fade)st+='opacity:'+[1,1,.72,.52,.36][Math.min(AV[i],4)]+';';
     let body='';
     if(g)body='';
