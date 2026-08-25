@@ -743,7 +743,7 @@ const BLACKSU=[0,3], REDSU=[1,2];   // indices into SU - spade and club black, h
 // deserve to be named, and an even split is worth calling even rather than '50% black'.
 function mixText(pct){
   const p=Math.round(pct);
-  return p===0?'all red':p===100?'all black':p===50?'50 / 50':(p+'% black');}
+  return p===0?'All Red':p===100?'All Black':p===50?'50 / 50':(p+'% Black');}
 function mixSlide(v){
   const e=document.getElementById('cselv');
   if(e)e.textContent=mixText(+v);}
