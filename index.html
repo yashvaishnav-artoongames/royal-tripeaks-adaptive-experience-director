@@ -516,7 +516,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.2.0';
+const APP_VERSION='1.1.1';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -1011,39 +1011,7 @@ function buildFixed(li,ti,seed){
   return LV;
 }
 // one playthrough. returns the result plus anything that looked wrong.
-// ==== PLAYER BEHAVIOUR CLASS ==================================================
-// Every reliability figure this project owns - 91% held, 30% exact, reg.js pass counts -
-// was measured against a bot that picks uniformly at random. That is not a player, and it
-// left the behaviour class undefined: the guarantee was measured by accident rather than
-// stated. A director can only be "accurate" with respect to some set of player behaviours,
-// so the set has to be named before any number means anything.
-//
-// RANDOM must stay byte-identical to what it was - exactly one rnd() per play decision -
-// or every historical seed changes meaning and no before/after comparison is valid.
-const POLICIES=['random','greedy','cautious','drawhappy'];
-let DRAWHAPPY_P=0.25;      // how often it draws with a play available
-function botPick(lg,policy){
-  if(policy==='greedy'){
-    // dig: take the play that opens the most, deepest first. Deterministic, no rnd().
-    let b=lg[0];
-    for(const i of lg){
-      const a=unl(i),c=unl(b);
-      if(a>c||(a===c&&DPT[i]>DPT[b]))b=i;}
-    return b;
-  }
-  if(policy==='cautious'){
-    // bank: open the board as slowly as the match allows, taking the shallowest card that
-    // unlocks least. A real habit - it keeps known cards on the table as future outs.
-    let b=lg[0];
-    for(const i of lg){
-      const a=unl(i),c=unl(b);
-      if(a<c||(a===c&&DPT[i]<DPT[b]))b=i;}
-    return b;
-  }
-  return lg[Math.floor(rnd()*lg.length)];   // random, and drawhappy's play choice
-}
-function botPlay(pseed,policy){
-  policy=policy||'random';
+function botPlay(pseed){
   const bugs=[];
   srand(pseed);
   reset();
@@ -1053,11 +1021,7 @@ function botPlay(pseed,policy){
     const leftNow=N-cl.size;
     if(leftNow===0){res={win:true,v:deckLeft()};break;}
     if(lg.length){
-      // The one behaviour that lives OUTSIDE the proof: exh() only draws when nothing is
-      // playable, so a voluntary draw is a line no proof covers. miss1() is the game's own
-      // "Draw anyway", and it re-proves through reDirect() on a verified level.
-      if(policy==='drawhappy'&&deckLeft()>0&&rnd()<DRAWHAPPY_P){miss1();continue;}
-      const pick=botPick(lg,policy);
+      const pick=lg[Math.floor(rnd()*lg.length)];
       if(!expo(pick))bugs.push('played a card that was not exposed');
       play(pick);
     }else if(deckLeft()>0){
@@ -1701,12 +1665,6 @@ function finishBuild(){
   if(!LV.base)LV.base={};
   if(!LV.base.rank){const r={};for(let i=0;i<N;i++)r[i]=LV.rank[i];
     LV.base.rank=r;LV.base.LB=LV.LB.slice();LV.base.deck=LV.deck.slice();}
-  // Captured outside the guard above, because genLive() builds LV.base itself and would
-  // otherwise skip this. These are the fields reset() has to put back - see reset().
-  if(LV.base.tv===undefined){
-    LV.base.tv=LV.tv;
-    LV.base.deckLen=LV.deckLen;
-    LV.base.band=LV.band?LV.band.slice():null;}
   TL.className='tag'+(out.usedMode===4?' live':'');
   TL.textContent=out.usedMode===4?(FORCELIVE?'Live director (forced)':'Live director'):'Verified';
   const row=(a,b)=>'<tr><td class="k">'+a+'</td><td class="v">'+b+'</td></tr>';
@@ -2066,20 +2024,6 @@ function plusSweep(){
     if(hit<0)break;
     fired.push(hit);
     plusFire(hit);
-  }
-  // A tile clears ITSELF, so it can expose cards the caller never got a chance to mint.
-  // The verified director bound every slot at build time and does not care; the live
-  // director and the rescue mint on reveal, and nothing else will do it for them - play()
-  // reveals before the sweep, and reset() and plusFire() do not reveal at all. Left
-  // undone, render() reads LV.LB[i][0] on an unbound exposed card and throws, which
-  // freezes the board on its previous paint with the card already cleared underneath.
-  if(fired.length&&LV){
-    const nw=[];
-    for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
-    if(nw.length){
-      if(ecInRescue()&&EC)ecReveal(nw);
-      else if(LV.live)dReveal(nw);
-    }
   }
   return fired.length?fired:null;
 }
@@ -3509,16 +3453,6 @@ function reset(){if(!LV)return;
     if(LV.base.deck)LV.deck=LV.base.deck.slice();
     if(LV.base.pool)LV.pool=Object.assign({},LV.base.pool);
     if(LV.base.usd)LV.usd=Object.assign({},LV.base.usd);
-    // The round's mutable TARGET state. Everything above is the deal; these are what the
-    // recovery ladder moves while the round runs - retarget() walks tv, a supply change
-    // grows deckLen on a live level, reband rewrites band, insertWild queues wildAt. None
-    // of it was restored, so pressing Replay inherited the previous round's drift: a live
-    // level's deck grew every single time it was replayed, and every measurement that
-    // replays one build degraded pass by pass.
-    if(LV.base.tv!==undefined)LV.tv=LV.base.tv;
-    if(LV.base.deckLen!==undefined)LV.deckLen=LV.base.deckLen;
-    if(LV.base.band)LV.band=LV.base.band.slice();
-    LV.wildAt=[];
   }
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
