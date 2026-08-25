@@ -536,6 +536,13 @@ td.v{font-weight:500;}
    Rank, suit and arrow all take the card's colour; only the ghosts stay grey, so the two
    ranks that are not in play cannot be mistaken for the one that is. */
 .pc.udc{background:#fff;border:1.5px solid #d7dae3;}
+/* An up/down card is an ORDINARY matchable card - that is D-014's whole point - so when
+   playable it takes the same blue ring and hover as every other card. Without these
+   restatements .pc.udc, which sits later in the sheet than .pc.pl at equal specificity,
+   swallowed the highlight: the card was legal, listed in the move buttons, and looked
+   asleep. */
+.pc.udc.pl{background:#eef2ff;border:2px solid #3b5bdb;}
+.pc.udc.clk:hover{background:#e0e7ff;}
 .udb{position:relative;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:.06em;width:100%;height:100%;line-height:1;color:#1a1d23;}
 .udc.red .udb{color:#dc2626;}
