@@ -128,3 +128,47 @@ the first ordering that lands (`TAIL.extraTries`), because this runs inside a
 player's tap and up to two absorbs can fire on one card: the first implementation
 swept to the deadline and turned the typical case into the worst case, which hung
 `tools/streaktest.js` outright.
+
+---
+
+**D-010 — The verified guarantee is stated with its behaviour class**
+Status: APPROVED · Version: 1.2.x · Relates: ISSUE-015
+
+Decision: the guarantee is written as *"a verified level lands on its target for every line
+in which the player plays whenever a play is available"* — not as *"no verified level ever
+misses"*. Anywhere the broader claim appears, it is corrected.
+
+Reason: `exh()` recurses into a draw only when nothing is playable, so a voluntary draw is
+outside the proved line space. This is not a modelling gap that can be closed: a player who
+empties the deck forces "0 unused" whatever the card values are, so no assignment can hold
+"exactly 2 unused" against them. Measured 2026-08-25 — at a 2% voluntary-draw rate a third
+of win targets already fail; at 10%, six of sixty-seven survive.
+
+The alternative was to keep the broad claim and make it true by replenishing the deck when a
+draw is wasted. Rejected for now: it makes the deck counter stop behaving the way a player
+expects, which is the detectable-adaptation cost the project has explicitly refused to pay
+elsewhere. It stays available if absorption proves insufficient.
+
+Impact: `absorbWastedDraw()` narrows the gap by stepping the target down inside its band, so
+a wasted draw costs a number rather than the outcome. Documentation states the class. The
+claim and the code now agree, which they did not before.
+
+---
+
+**D-011 — A live level advertises the authored band, not a widened one**
+Status: APPROVED · Version: 1.2.x · Supersedes the ±1 padding in `liveBand()`
+
+Decision: `liveBand()` returns `[tgt.lo, tgt.hi]`. A live level promises exactly what the
+outcome promises.
+
+Reason: the padding never affected steering — `bandOf()` reads the authored `tgt.lo/hi`, so
+`retarget()`, `bandOrder()` and the reband rung always worked to the real band. It reached
+only `LV.band`: the plan panel, the in-page bot's scoring and the reachability detector. Its
+entire effect was to grade the live director against a target one wider than the one the
+player was promised. Measured over 121 pairs: 76% "in band" against the padded figure, 57%
+against the promise.
+
+Impact: `liveBand()`; the panel and the detector now read the authored band. Reported live
+accuracy will fall by roughly nineteen points with no change in behaviour — that is the
+correction, not a regression. `reg.js` reports both figures so the two are never confused
+again.

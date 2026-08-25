@@ -1287,9 +1287,19 @@ function clearVData(){VDATA={};saveVData();
 // only ever reached when tiers 0-3 have all failed on this level.
 // the live director cannot hit an exact number, so a live level is given a band
 // widened one step either side of the chosen outcome. tight targets stay tight.
+// The band a live level advertises. It used to widen the authored one by 1 in each
+// direction, on the reasoning that steering cannot hit a number as tightly as a proof can.
+// That is true and it is not a licence to move the promise: RULE-007 and D-004 say the band
+// IS the outcome, and a Close Lose that lands on 2 stranded cards is not a Close Lose.
+//
+// The widening never touched steering - bandOf() reads the authored tgt.lo/hi, so retarget(),
+// bandOrder() and the reband rung were always working to the real band. It reached only
+// LV.band, which is the panel, the in-page bot's scoring and the reachability detector. So
+// its whole effect was to flatter the report: measured over 121 pairs, live scored 76%
+// "in band" against the widened figure and 57% against the promise. Nineteen points of
+// self-marking. Same runs, same director, honest denominator.
 function liveBand(tgt){
-  const lo=Math.max(tgt.win?0:1,tgt.lo-1), hi=tgt.hi+1;
-  return [lo,hi];
+  return [tgt.lo,tgt.hi];
 }
 function genLive(tgt,tv){
   const pool={},usd={};ALL.forEach(function(r){pool[r]=SUP;usd[r]=0;});
