@@ -298,3 +298,40 @@ where the draw aborts and pops its own snapshot.
 Impact: `UPDN`/`UDN`/`UDFLASH`, `isUDSlot`, `udWrap`, `udLive`, `udTick`; `play()`, `draw()`,
 `miss1()`, `useWild()`, `useLevel()`, the render branch, `bends`; the `IncrementalCards`
 importer, which refuses any `Value` other than ±1; and L41 as a built-in level.
+
+---
+
+**D-015 — Colour mix is a dial, and it is hashed rather than rolled**
+Status: APPROVED · Version: 1.1.1+ · Relates: D-008
+
+Decision: a single tunable `BLACKP` sets the share of cards the director deals black — 0 is
+all red, 1 is all black, 0.5 is even — and every one of the eight places that chose a suit now
+goes through one chooser. The family is derived by **hashing** rank, copy number and the
+current seed, never by spending a `rnd()`.
+
+**Why it is a dial at all.** The streak meter pays a bonus for five cards of one colour, so
+the colour mix decides how often that bonus can fire — at 1 every streak is monochrome and the
+bonus is permanent, at 0.5 it has to be earned. That makes the mix an economy input. Nothing
+was choosing it before: suits fell out of a fixed per-rank rotation `SU[usd[r]%4]` that
+happened to average even, which is not the same as being controlled.
+
+**Why hashed, not rolled.** This is the load-bearing part. The ranks, the deck order and the
+proofs `exh()` signed off are all downstream of the random stream, so spending a `rnd()` on
+something as cosmetic as a suit would move every level's deal — every cached build invalidated
+to change a colour. `famBlack(r,n)` instead hashes the rank, the copy index and `RSEED`, which
+is **read and never advanced**. Colours therefore differ between deals — which is what stops a
+double root of a fixed rank being the same colour every time, the exact shape of the L111 bug —
+while the stream itself is untouched and every level builds bit-identically to before.
+
+**What the extremes cost.** Two suits cannot cover four copies of a rank, so at 0 or 1 a rank
+repeats a face. Measured: 3.24 distinct faces per four copies at 0.5, exactly 2.00 at 1.0,
+which is the ceiling rather than a defect. Within a family the chooser alternates on a
+per-colour count, so it repeats as late as it can.
+
+Measured across 13 ranks × 4 copies × 400 seeds: 0.0 / 25.0 / 50.0 / 74.9 / 100.0 per cent
+black at dial settings 0 / 0.25 / 0.5 / 0.75 / 1.
+
+Impact: `BLACKP`, `setColorMix()`, `famBlack()`, `pickSuit()`, `mixLabel()`, `mixOrder()`;
+the two verified-builder labellers, `genLive`'s, `dLabel`, `supplyLabel`, `reassignUnseen`'s
+and `ecLabel`. `dblSuit` is deleted — the special case existed only because the old rotation
+put a spade on every unused rank, and a hashed mix has no such bias to correct.

@@ -705,12 +705,52 @@ const secondOf=r=>(r===13?1:r+1);
 const DBLROOTS=[11,12,13];
 const dblRoot=r=>DBLROOTS.indexOf(r)>=0;
 const dblFilter=(i,arr)=>isDblSlot(i)?arr.filter(dblRoot):arr;
-// Suits are handed out as SU[usd[r]%4]. That is deterministic, and usd[r] is 0 for any
-// rank the level has not used yet - which a double root almost always is - so SU[0], the
-// spade, won every time and L111's single double card came out black in every deal.
-// A double is a colour FAMILY, so roll it: four suits, two black and two red, even split.
-// Only called for a double slot, so no ordinary level's random stream moves.
-const dblSuit=rng=>SU[Math.floor(rng()*4)];
+// ==== COLOUR MIX ==============================================================
+// BLACKP is the share of cards the director deals BLACK. 0 makes every card a heart or a
+// diamond, 1 makes every card a spade or a club, 0.5 is an even split. Set it from the
+// console with setColorMix(p) and rebuild.
+//
+// This is an economy dial, not decoration. The streak meter pays a bonus for five cards of
+// ONE colour, so the mix decides how often that bonus can fire at all - at 1 every streak is
+// monochrome and the bonus is permanent, at 0.5 it has to be earned. Nothing was choosing
+// the mix before: suits fell out of a fixed per-rank rotation that happened to average even.
+let BLACKP=0.5;
+const BLACKSU=[0,3], REDSU=[1,2];   // indices into SU - spade and club black, heart and diamond red
+function setColorMix(p){
+  const v=Number(p);
+  BLACKP=(isFinite(v)?Math.max(0,Math.min(1,v)):0.5);
+  return 'BLACKP='+BLACKP+' \u2014 '+Math.round(BLACKP*100)+'% black, '+
+    Math.round((1-BLACKP)*100)+'% red. Rebuild the level to see it.';}
+// Which family does copy n of rank r belong to? Hashed rather than rolled, and this is the
+// load-bearing choice: the ranks and the deck order the prover signed off are downstream of
+// the random stream, so spending a rnd() on something as cosmetic as a suit would move every
+// level's deal. RSEED is READ and never advanced - that gives colours that differ between
+// deals, which is what stops a double root of a fixed rank being the same colour every time
+// (the exact shape of L111's bug), while leaving the stream itself untouched.
+function famBlack(r,n){
+  let x=Math.imul((((r+1)*73856093)^((n+1)*19349663))^RSEED,0x45d9f3b);
+  x^=x>>>15;
+  return (((x>>>0)%100000)/100000)<BLACKP;}
+// Distinct faces within a family for as long as the mix allows: count how many of this
+// rank's earlier copies landed on each colour, then alternate inside whichever family this
+// copy belongs to. At the extremes a repeat is unavoidable and not a defect - two suits
+// cannot cover four copies of a rank, so a dial at 1 deals spade, club, spade, club.
+function pickSuit(r,n){
+  let b=0,d=0;
+  for(let j=0;j<n;j++){if(famBlack(r,j))b++;else d++;}
+  const black=famBlack(r,n);
+  return SU[(black?BLACKSU:REDSU)[(black?b:d)%2]];}
+function mixLabel(r,n){const s=pickSuit(r,n);return [RN[r],s,s==='\u2665'||s==='\u2666'];}
+// Preference order for the two labellers that must respect a pair-usage budget: the family
+// the mix asks for first and its less-used suit ahead of its other, then the opposite family
+// on the same terms. So the dial is honoured whenever supply allows, and exhaustion still
+// falls through to a real card instead of failing.
+function mixOrder(r,used){
+  let n=0;for(const s of SU)n+=(used[r+s]||0);
+  const black=famBlack(r,n);
+  const two=function(f){const a=SU[f[0]],b=SU[f[1]];
+    return ((used[r+a]||0)<=(used[r+b]||0))?[a,b]:[b,a];};
+  return two(black?BLACKSU:REDSU).concat(two(black?REDSU:BLACKSU));}
 // Lock & Key: a two-tile pair that clears ITSELF when the player taps the key. Neither
 // tile is ever matched against the head card and the pair costs no deck card, which makes
 // it the exact mirror of the Plus Card: that one tile fires itself and pays the deck,
@@ -1086,7 +1126,7 @@ function gen(tgt,tv,rng,mode){
       const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');
       const r=rich(c);sup[r]--;deckR.push(r);}
     const usd2={};ALL.forEach(r=>usd2[r]=0);
-    const lab2=r=>{const s=SU[usd2[r]%4];usd2[r]++;return[RN[r],s,s==='\u2665'||s==='\u2666'];};
+    const lab2=r=>{const L=mixLabel(r,usd2[r]||0);usd2[r]++;return L;};
     const sd2=lab2(seed),LB2=[],deck2=[];
     for(const r of deckR){const Q=lab2(r);deck2.push([Q[0]+Q[1],r,Q[2]]);}
     for(const e of ev)if(e.t==='p')LB2[e.i]=lab2(rank[e.i]);
@@ -1121,7 +1161,7 @@ function gen(tgt,tv,rng,mode){
   const sp=[];for(let i=0;i<(tgt.win?tv:0);i++){
     const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');const r=rich(c);sup[r]--;sp.push(r);}
   const usd={};ALL.forEach(r=>usd[r]=0);
-  const lab=r=>{const s=SU[usd[r]%4];usd[r]++;return[RN[r],s,s==='\u2665'||s==='\u2666'];};
+  const lab=r=>{const L=mixLabel(r,usd[r]||0);usd[r]++;return L;};
   const sd=lab(seed),LB=[],deck=[];
   for(const r of ev.filter(e=>e.t==='d').map(e=>e.r).concat(sp)){const Q=lab(r);deck.push([Q[0]+Q[1],r,Q[2]]);}
   for(const e of ev)if(e.t==='p')LB[e.i]=lab(rank[e.i]);
@@ -1395,8 +1435,9 @@ function liveBand(tgt){
 }
 function genLive(tgt,tv){
   const pool={},usd={};ALL.forEach(function(r){pool[r]=SUP;usd[r]=0;});
-  const lab=(r,dbl)=>{const s=dbl?dblSuit(rnd):SU[usd[r]%4];usd[r]++;
-    return[RN[r],s,s==='\u2665'||s==='\u2666'];};
+  // A double needs no special case now: the mix is hashed per rank and per copy, so a
+  // double root no longer lands on SU[0] every time just because its rank is unused.
+  const lab=r=>{const L=mixLabel(r,usd[r]||0);usd[r]++;return L;};
   const pick=cs=>{if(!cs.length)return undefined;
     let m=-1,o=[];for(const c of cs){if(pool[c]>m){m=pool[c];o=[c];}else if(pool[c]===m)o.push(c);}
     return o[Math.floor(rnd()*o.length)];};
@@ -1404,7 +1445,7 @@ function genLive(tgt,tv){
   if(!roots.length)return null;
   const rank=[],LB=[];
   const seedR=pick(ALL.filter(r=>pool[r]>0));if(seedR===undefined)return null;
-  pool[seedR]--;const seedCard=lab(seedR,false);
+  pool[seedR]--;const seedCard=lab(seedR);
   let first=true;
   for(const rt of roots){
     // A wild root needs no rank at all - binding one spends a card from the pool on a slot
@@ -1419,7 +1460,7 @@ function genLive(tgt,tv){
     if(isDblSlot(rt)){let hi=DBLROOTS.filter(function(x){return pool[x]>0;});
       if(!hi.length)hi=DBLROOTS;c=hi;}
     const r=pick(c);if(r===undefined)return null;
-    pool[r]--;rank[rt]=r;LB[rt]=lab(r,isDblSlot(rt));first=false;}
+    pool[r]--;rank[rt]=r;LB[rt]=lab(r);first=false;}
   const bd=liveBand(tgt);
   return {live:true,tgt:tgt,tv:Math.round((bd[0]+bd[1])/2),band:bd,usedMode:4,unreach:[],
     base:{rank:rank.slice(),LB:LB.slice(),pool:Object.assign({},pool),usd:Object.assign({},usd)},
@@ -1428,8 +1469,7 @@ function genLive(tgt,tv){
     ln:[],dl:[],clamp:9,dead:0,pay:0,needPay:false,
     ver:{minDen:0,minPay:0,states:0,forks:0}};
 }
-function dLabel(r,dbl){const s=dbl?dblSuit(rnd):SU[LV.usd[r]%4];LV.usd[r]++;
-  return[RN[r],s,s==='\u2665'||s==='\u2666'];}
+function dLabel(r){const L=mixLabel(r,LV.usd[r]||0);LV.usd[r]++;return L;}
 function dPick(cs){if(!cs.length)return undefined;
   let m=-1,o=[];for(const c of cs){if(LV.pool[c]>m){m=LV.pool[c];o=[c];}else if(LV.pool[c]===m)o.push(c);}
   return o[Math.floor(rnd()*o.length)];}
@@ -1442,7 +1482,7 @@ function dBind(i,r){
   // that does not exist, so the root stays in DBLROOTS even when supply says no.
   if(isDblSlot(i)){let w=DBLROOTS.filter(function(x){return LV.pool[x]>0;});
     if(!w.length)w=DBLROOTS;r=w[Math.floor(rnd()*w.length)];}
-  LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r,isDblSlot(i));}
+  LV.pool[r]--;LV.rank[i]=r;LV.LB[i]=dLabel(r);}
 // how long the current run should be so the level still lands on the target
 // cards that should actually be cleared from here. on a losing target the last
 // tv cards must be left standing, so they are not part of the goal.
@@ -2226,12 +2266,11 @@ function reassignUnseen(rng){
   if(pool.length<hid.length+freeDeck)return null;
   for(let i=pool.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));
     const t=pool[i];pool[i]=pool[j];pool[j]=t;}
-  const lab=function(r,dbl){
-    // Fixed SU order offers the spade first, so a double took a black suit unless the
-    // spade was already spent. Offer the rolled family's two suits first instead; the
-    // other family still follows, so pair exhaustion behaves exactly as before.
-    const ord=dbl?(rng()<0.5?[0,3,1,2]:[1,2,0,3]).map(function(x){return SU[x];}):SU;
-    for(const s of ord){const k=r+s;
+  const lab=function(r){
+    // Fixed SU order offered the spade first and took whatever was free, which ignored the
+    // mix entirely. mixOrder puts the family the dial asks for at the front and still
+    // falls through to the other, so pair exhaustion behaves exactly as before.
+    for(const s of mixOrder(r,pairUsed)){const k=r+s;
       if((pairUsed[k]||0)<copies){pairUsed[k]=(pairUsed[k]||0)+1;
         return [RN[r],s,s==='\u2665'||s==='\u2666'];}}
     return null;};
@@ -2247,7 +2286,7 @@ function reassignUnseen(rng){
     return undefined;};
   for(const i of hid){const r=takeAt(isDblSlot(i)?dblRoot:null);
     if(r===undefined)return null;
-    const L1=lab(r,isDblSlot(i));if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
+    const L1=lab(r);if(!L1)return null;rank2[i]=r;LB2[i]=L1;}
   const dk2=dk.slice(0,di);
   for(let p=0;p<freeDeck;p++){const r=takeAt(null);if(r===undefined)return null;
     const L2=lab(r);if(!L2)return null;
@@ -2660,8 +2699,7 @@ function supplyPick(){
 }
 function supplyLabel(r){
   if(LV.usd&&typeof dLabel==='function')return dLabel(r);
-  const s=SU[Math.floor(rnd()*4)];
-  return [RN[r],s,s==='\u2665'||s==='\u2666'];
+  return mixLabel(r,0);
 }
 
 
@@ -2986,10 +3024,13 @@ function ecCanDoAnything(){
 // suit allocation that cannot hand out a card that already exists
 function ecLabel(r){
   const copies=Math.max(1,Math.ceil((4*Math.ceil((N+DECKN)/52)+Math.ceil(ECGRANTED/13))/4));
-  for(const s of SU){const k=r+s;
+  const ord=mixOrder(r,EC.pairUsed);
+  for(const s of ord){const k=r+s;
     if((EC.pairUsed[k]||0)<copies){EC.pairUsed[k]=(EC.pairUsed[k]||0)+1;
       return [RN[r],s,s==='\u2665'||s==='\u2666'];}}
-  return [RN[r],SU[0],false];
+  // Budget exhausted on every suit. Hand back the one the mix wanted rather than a hard
+  // spade, which was both off-dial and always black.
+  const s=ord[0];return [RN[r],s,s==='\u2665'||s==='\u2666'];
 }
 // Optimistically: could n cards clear this board at all? Takes the biggest line
 // available at each step, which is exactly what a win-intent rescue tries to do. Used to
