@@ -433,23 +433,19 @@ td.v{font-weight:500;}
 @keyframes lkp{0%,100%{box-shadow:0 0 0 0 rgba(219,39,119,.55)}
   70%{box-shadow:0 0 0 8px rgba(219,39,119,0)}}
 .pc.lkc.lkrdy{border-color:#db2777;animation:lkp 1.5s ease-out infinite;cursor:pointer;}
-/* Up & Down. The whole card is a window onto the rank ring: the number it is leaving
-   above, the number it shows now in the middle, the number it moves to next below. Reading
-   downward is reading forward in time, whichever way the tile counts - so an up card at 7
-   shows 6/7/8 and a down card at 7 shows 8/7/6. It keeps an ordinary card face and border,
-   because it IS an ordinary matchable card; only what it is worth moves. */
+/* Up & Down. Three rows: the block arrow saying which way it counts, a ghost of the rank
+   it steps to next, and what it is worth right now. Ordinary card face and border, because
+   it IS an ordinary matchable card - only its value moves. The arrow takes the SUIT's
+   colour, not the direction's, which is the rule the shipping Spine uses too: it picks its
+   clip colour from Card_Type, so a down card on a heart is a red arrow. */
 .pc.udc{background:#fff;border:1.5px solid #d7dae3;}
-.udb{position:relative;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;width:100%;height:100%;line-height:1;}
-.udb .sy{position:absolute;left:.15em;top:.11em;font-size:.5em;color:#1a1d23;}
-.udc.red .udb .sy{color:#dc2626;}
-/* The direction arrow is not in the reference sheet, and it is here because the reel alone
-   cannot say which way time runs on a single glance - the ghosts are symmetrical to anyone
-   who has not been told the convention. */
-.udb .ar{position:absolute;right:.15em;top:.1em;font-size:.44em;font-weight:800;color:#9aa1ad;}
-.udb .gh{font-size:.6em;font-weight:700;color:#c9ccd6;}
-.udb .rk{font-size:1.18em;font-weight:800;color:#1a1d23;margin:.05em 0;}
-.udc.red .udb .rk{color:#dc2626;}
+.udb{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.1em;width:100%;height:100%;line-height:1;color:#1a1d23;}
+.udc.red .udb{color:#dc2626;}
+.udb .ar{font-size:.5em;line-height:1;}
+.udb .gh{font-size:.58em;font-weight:700;color:#cfd3dc;}
+.udb .rk{font-size:1.2em;font-weight:800;display:flex;align-items:flex-start;gap:.05em;}
+.udb .rk .su{font-size:.52em;line-height:1.15;}
 /* The per-step tell. The shipping build has this written and commented out, which is why
    these levels read as random rather than tricky: the rank changes by a silent sprite swap
    and nothing draws the eye to the moment your target moved. Box-shadow only - .pc carries
@@ -3867,12 +3863,14 @@ function render(){
       // Ordinary card face, ordinary border - it is an ordinary card. The window shows the
       // rank it is leaving, the rank it is worth now, and the rank it moves to next.
       const r=LV.rank[i],st=UPDN[i],L=LV.LB[i];
+      // The single ghost is the rank it steps to NEXT, not the one it came from: where it
+      // is going is the only part a player can act on, and the arrow already says which
+      // direction that is.
       body='<span class="udb">'+
-        '<span class="sy">'+(L?L[1]:'')+'</span>'+
         '<span class="ar">'+(st>0?'\u25b2':'\u25bc')+'</span>'+
-        '<span class="gh">'+RN[udWrap(r-st)]+'</span>'+
-        '<span class="rk">'+RN[r]+'</span>'+
-        '<span class="gh">'+RN[udWrap(r+st)]+'</span></span>';
+        '<span class="gh">'+RN[udWrap(r+st)]+'</span>'+
+        '<span class="rk">'+RN[r]+
+          '<span class="su">'+(L?L[1]:'')+'</span></span></span>';
       cls+=' udc'+((L&&L[2])?' red':'')+(UDFLASH.has(i)?' udf':'');
       if(e&&unl(i)>0)body+='<span class="bdg">+'+unl(i)+'</span>';}
     else if(isLKSlot(i)&&show){
