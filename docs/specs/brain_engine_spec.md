@@ -121,19 +121,43 @@ has all those predicates false. The swap therefore cannot change any current beh
 the prover becomes obstacle-aware *by construction*. **This is the whole reason the plan is
 safe to start.**
 
-That is a proof by case analysis. There is also an **empirical** guard for it, and it was
-built for this exact job: `tools/equiv.js`, deleted in 1.0.2 and recoverable with
+That is a proof by case analysis. It was also confirmed **empirically** — see below.
+
+#### The empirical guard, and the trap it walked into first
+
+`docs/measurements/prover-equivalence.js` (recovered from `tools/equiv.js` at `v1.0.1`, which
+was built for exactly this job) loads two builds into separate VM contexts behind a DOM stub
+and calls `exh()` and `allHit()` on **identical captured inputs**. Its own header explains the
+shape: the generator around the provers is time-boxed, so comparing whole builds can never be
+deterministic — comparing the two functions directly isolates the change from the wall-clock
+search around it.
 
 ```bash
-git checkout v1.0.1 -- tools/equiv.js && AED_BASELINE=/path/to/old/index.html node tools/equiv.js
+git show HEAD:index.html > /tmp/baseline.html
+AED_BASELINE=/tmp/baseline.html node docs/measurements/prover-equivalence.js
 ```
 
-It loads two builds into separate VM contexts behind a DOM stub and calls `exh()` and
-`allHit()` on **identical captured inputs**, comparing the returns. Its own header explains
-why that shape: the generator around the provers is time-boxed, so comparing whole builds
-can never be deterministic — comparing the two functions directly isolates the change from
-the wall-clock search around it. It plays no games and runs no levels, so it is not one of
-the slow suites. **Stage 0 should not land without it showing zero differences.**
+**On first run it captured zero cases and reported agreement.** That is a vacuous pass and
+exactly the ISSUE-001 shape — a green result from a harness that never ran. The cause: every
+built-in level now carries an obstacle, so every one is steered live, so `genLive` returns an
+empty deck, and the capture loop skips any level whose deck is empty. **There is no
+obstacle-free level left in the built-in table for the prover to own.**
+
+The script therefore strips the obstacle fields from `LEVELS` in *both* contexts before
+capturing — same real geometry, no obstacles, so the prover owns the levels and the
+comparison is real. With that in place, against a 1.5.0 baseline:
+
+```
+captured 24 real (rank, deck, target) inputs
+comparisons (7 deck growths each) : 168
+identical                         : 168
+differing                         : 0
+```
+
+Two things follow. Stage 0 is confirmed a no-op by measurement as well as by case analysis.
+And **adding one obstacle-free level back to the built-in table would make this guard work
+without the strip** — worth doing before Stage 1, since stages 1–4 each change the prover and
+this is the only thing watching them.
 
 ### 3.2 The memo key survives — VERIFIED
 
@@ -198,7 +222,7 @@ exactly where 1.4.0 left it.
 
 Also: surface `readBoard()` in the Level plan panel. A brain you cannot inspect is plumbing.
 
-**Verify:** `equiv.js` reporting zero differences against a 1.4.0 baseline (§3.1), plus
+**Verify:** `prover-equivalence.js` reporting zero differences against a 1.5.0 baseline (§3.1), plus
 `brain-engine-validation.js`, plus every level still building and behaving as it does now.
 If `equiv.js` shows a single difference, the no-op claim is wrong and nothing else in this
 plan can be trusted — stop there.
@@ -263,7 +287,8 @@ iterative-deepening or per-level cap, and even then only for k≤2.
 | Wild's branching blows the 250k cap | `bad` → falls through to re-deal → live. Safe, but no coverage gained. | Stage 1 alone; measure forks before Stage 2. |
 | The `taught` flags drift from reality | a flag set true before the code models it *is* ISSUE-011 again | flip a flag only in the same commit that teaches it |
 | Nothing measures band adherence | `reg.js` and the sweeps left in 1.0.2 | any stage claiming an accuracy number needs a harness back first — `git checkout v1.0.1 -- tools/reg.js`, and expect CRLF trouble (see below) |
-| `equiv.js` cannot run | it is the only guard on the Stage 0 no-op | recover from `v1.0.1`; if it will not run, Stage 0 rests on case analysis alone and Stage 1 should wait |
+| the equivalence guard silently compares nothing | a vacuous pass reads exactly like a real one — this already happened once, see §3.1 | check the captured-case count before reading the result; zero cases is a failure, not a pass |
+| no obstacle-free built-in level | the guard needs one, or it must fake one by stripping fields | add a plain control level to the table before Stage 1 |
 | `canMatch` gets bypassed | the defect returns silently | the section comment says nothing else may decide legality; grep for `cyc(` in the provers as a check |
 
 ## 5a. Before recovering any harness

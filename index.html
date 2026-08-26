@@ -905,24 +905,109 @@ const LKSVG={
   lock:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.6a5.2 5.2 0 0 0-5.2 5.2V10h2.5V6.8a2.7 2.7 0 0 1 5.4 0V10h2.5V6.8A5.2 5.2 0 0 0 12 1.6z"/>'+
     '<path fill-rule="evenodd" d="M5.4 10h13.2c1 0 1.8.8 1.8 1.8v8.6c0 1-.8 1.8-1.8 1.8H5.4c-1 0-1.8-.8-1.8-1.8v-8.6c0-1 .8-1.8 1.8-1.8zm6.6 3.5a1.7 1.7 0 0 0-.9 3.1l-.5 2.2a.6.6 0 0 0 .6.7h1.6a.6.6 0 0 0 .6-.7l-.5-2.2a1.7 1.7 0 0 0-.9-3.1z"/></svg>',
   key:'<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M12 1.6a5.3 5.3 0 0 0-1.3 10.4v8.4c0 1 .6 1.9 1.3 1.9s1.3-.9 1.3-1.9v-1.1h2.3a.75.75 0 0 0 0-1.5h-2.3v-2h2.3a.75.75 0 0 0 0-1.5h-2.3V12A5.3 5.3 0 0 0 12 1.6zm0 2.7a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z"/></svg>'};
-// Does slot i answer a waste of rank w? The one place the two obstacles change the rule.
-function slotTakes(i,w){
+// ==== THE BRAIN ===============================================================
+// One place that knows what every obstacle does to a plan, so the directors do not each
+// carry their own half-remembered copy of the rules.
+//
+// Before this, the matching rule lived TWICE: slotTakes() for the player, and a bare
+// cyc(rank[i],w) inside exh() and allHit() for the prover. The prover's copy knew about no
+// obstacle at all, so its imaginary player believed a plus tile was a card to spend a match
+// on, a wild was a permanent wall, a double carried one rank, and a lock never lifted. On a
+// plus level that is not a smaller proof, it is a proof about a different game - ISSUE-011.
+//
+// Full specification and the staged plan: docs/specs/brain_engine_spec.md
+
+// The facts. One row per obstacle, carrying only what a PLANNER needs.
+//
+// Two columns matter more than the rest, and they are deliberately separate:
+//   provable  can a fixed-rank search prove this level IN PRINCIPLE
+//   taught    does exh()/allHit() model it TODAY
+// Gating on `provable` alone would reopen ISSUE-011 under a new name - the prover would
+// explore a game it still has wrong. The gate reads `taught`. provable && !taught is the
+// work queue, and a flag may only be flipped in the same change that teaches it.
+const OBS={
+  plus:{name:'Plus Card',    matched:false, selfClear:1, paysDeck:true,  bends:null,
+        provable:false, taught:false,
+        why:'the ranks it grants are chosen when it fires, so no deck can be pre-committed'},
+  lock:{name:'Lock & Key',   matched:false, selfClear:2, paysDeck:false, bends:null,
+        provable:true,  taught:false,
+        why:'deterministic once both halves are revealed; needs a pair-collect move'},
+  wild:{name:'Wild',         matched:true,  selfClear:0, paysDeck:false, bends:'any',
+        provable:true,  taught:false,
+        why:'rankless and legal against any non-wild waste - no new state at all'},
+  dbl: {name:'Double Value', matched:true,  selfClear:0, paysDeck:false, bends:'two',
+        provable:true,  taught:false,
+        why:'needs one extra bit in the memo key for a two-valued waste'},
+  ud:  {name:'Up & Down',    matched:true,  selfClear:0, paysDeck:false, bends:'moving',
+        provable:false, taught:false,
+        why:'rank is a function of the move count; the live rank costs 13^k in the key'}
+};
+function obsPresent(){
+  const a=[];
+  if(PLUSTILES>0)a.push('plus');
+  if(LOCKS.size>0||KEYS.size>0)a.push('lock');
+  if(WILDS.size>0)a.push('wild');
+  if(DBLS.size>0)a.push('dbl');
+  if(UDN>0)a.push('ud');
+  return a;}
+// Can the prover be trusted with this level? Derived from the table rather than kept as a
+// hand-maintained boolean, so a sixth obstacle cannot forget to update the gate.
+function proverTaught(){
+  const p=obsPresent();
+  for(const k of p)if(!OBS[k].taught)return false;
+  return true;}
+// Provable in principle but not yet modelled - the work queue, in spec order.
+function obsUntaught(){
+  return obsPresent().filter(function(k){return OBS[k].provable&&!OBS[k].taught;});}
+// A brain you cannot inspect is plumbing. This is what the directors are actually reading,
+// said in the panel next to the plan they made with it.
+function brainLine(){
+  const p=obsPresent();
+  if(!p.length)return 'none \u2014 ordinary cards, and the prover owns this level';
+  const B=readBoard();
+  const names=p.map(function(k){
+    return OBS[k].name+(OBS[k].taught?'':
+      ' <span class="delta delta-warn">'+(OBS[k].provable?'untaught':'unprovable')+'</span>');});
+  const facts=[];
+  if(B.free)facts.push(B.free+' free clear'+(B.free===1?'':'s'));
+  if(B.grants)facts.push('+'+B.grants+' deck card'+(B.grants===1?'':'s')+' pending');
+  if(B.wilds)facts.push(B.wilds+' wild');
+  if(B.moving)facts.push(B.moving+' moving rank'+(B.moving===1?'':'s'));
+  if(B.orphans)facts.push(B.orphans+' unpaired half');
+  facts.push(B.work+' to match');
+  return names.join(' \u00b7 ')+' \u2014 '+facts.join(', ');}
+
+// THE matching rule. Does slot i answer a waste of rank w?
+// `rank` is passed rather than read from LV, because the prover works on its own candidate
+// array. `w2` is the waste's SECOND value when the card in hand is itself a double; the
+// prover passes 0 because its memo key cannot carry a two-valued waste yet, which is exactly
+// why OBS.dbl.taught is still false.
+//
+// Nothing else may decide whether a slot answers a waste. If a second copy of this ever
+// appears, the defect above comes back and it comes back silently.
+function canMatch(i,w,rank,w2){
+  if(isPlusCard(i))return false;              // fires itself; never a match target
+  if(isLKSlot(i))return false;                // answers only its partner
   if(isWildSlot(i))return w!==WILD_RANK;      // wild on wild is refused
   if(w===WILD_RANK)return true;               // a wild head takes any ordinary card
-  const r=LV.rank[i];
+  const r=rank[i];
   if(r===undefined)return false;
-  // The head's own second value, when the card in hand is a double. Four pairings can
-  // match once both sides can be two-valued, and the ORDINARY rule is tried before any
-  // of the fallbacks - that ordering is what decides which branch a tap resolves on.
-  const w2=(wl&&wl[3])?wl[3]:0;
+  // The ORDINARY rule is tried before any of the fallbacks, and that ordering is what
+  // decides which branch a tap resolves on when more than one would serve.
   if(cyc(r,w))return true;                    // ordinary
-  if(w2&&cyc(r,w2))return true;               // head's second value
+  if(w2&&cyc(r,w2))return true;               // the waste's second value
   if(isDblSlot(i)){
     const s=secondOf(r);
-    if(cyc(s,w))return true;                  // card's second value
+    if(cyc(s,w))return true;                  // the card's second value
     if(w2&&cyc(s,w2))return true;             // both doubles
   }
   return false;
+}
+// The player's view: live ranks, and the head's own second value when it is a double.
+// An up/down card needs no branch here - udTick writes its live rank into LV.rank, so the
+// ordinary path already reads what the card is worth right now.
+function slotTakes(i,w){
+  return canMatch(i,w,LV.rank,(wl&&wl[3])?wl[3]:0);
 }
 function useLevel(ix){
   L=LEVELS[ix];N=L.N;DEP=L.dep;POS=L.pos;ROT=L.rot;DECKN=L.deckN;DRAWS=DECKN-1;
@@ -1622,7 +1707,9 @@ function dBind(i,r){
 // A director blind to the first two chases a goal too high on a draw budget too low, so it
 // drives runs harder than the board needs. That is the shape of the original complaint about
 // clearing the deck in sequence: the pressure was real, and partly self-inflicted.
-function oLedger(){
+// What this position costs the player, and what it will hand them. The other half of the
+// brain: canMatch says what is legal, readBoard says what the board is worth.
+function readBoard(){
   let free=0, grants=0, wilds=0, moving=0, keys=0, locks=0;
   // A plus tile fires the moment its last blocker goes, so on any line that clears the board
   // every unfired tile WILL fire. Its clear is free and its cards WILL arrive.
@@ -1641,17 +1728,19 @@ function oLedger(){
   const pairs=Math.min(keys,locks);
   free+=2*pairs;
   return {free:free, grants:grants, wilds:wilds, moving:moving,
-          pairs:pairs, orphans:(keys+locks)-2*pairs};
+          pairs:pairs, orphans:(keys+locks)-2*pairs,
+          work:(N-cl.size)-free,
+          present:obsPresent(), untaught:obsUntaught(), proved:proverTaught()};
 }
 // Cards the PLAYER has to match from here. Anything that leaves the board without a match
 // is not the player's work, and counting it made the director demand runs the board never
 // needed - three too many on L12, before lock and key existed to add more.
 function dGoal(){
-  const L=oLedger();
+  const L=readBoard();
   return (N-cl.size)-L.free-(LV.tgt.win?0:LV.tv);
 }
 function dRunLen(){
-  const L=oLedger();
+  const L=readBoard();
   // Pending grants are draws the director is about to be given. Leaving them out made it
   // ration a budget larger than it thought, which is the same error as the goal, inverted.
   const goal=dGoal(), C=(LV.deckLen-di+L.grants)-(LV.tgt.win?LV.tv:0);
@@ -1673,7 +1762,7 @@ function dReveal(newly){
   // Same correction as dGoal/dRunLen: the guard was comparing every remaining tile against
   // a draw budget that ignored pending grants, so it declared an emergency on boards that
   // were about to clear themselves and be paid for it.
-  const oL=oLedger();
+  const oL=readBoard();
   const leftNow=(N-cl.size)-oL.free, drawsNow=(LV.deckLen-di)+oL.grants;
   if(LV.tgt.win&&leftNow>drawsNow*1.6)RUNLEFT=Math.max(RUNLEFT,newly.length+2);
   if(!LV.tgt.win&&dGoal()<=0)RUNLEFT=0;
@@ -1744,7 +1833,7 @@ function exh(rank,deck,seed,win,tv,needPay){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
-        if(cyc(rank[i],w))lg.push(i);
+        if(canMatch(i,w,rank,0))lg.push(i);
       }
       if(lg.length){
         if(lg.length>1)fk++;
@@ -1789,7 +1878,7 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
-        if(cyc(rank[i],w))lg.push(i);
+        if(canMatch(i,w,rank,0))lg.push(i);
       }
       if(lg.length){ok=true;
         for(const i of lg){
@@ -1999,14 +2088,12 @@ function build(){
   // carrying either, the prover would be proving a game nobody plays. That is exactly the
   // defect already recorded for plus tiles. Until exh() models them, decline: a level with
   // no proof makes no promise, which is strictly better than a promise that is not true.
-  // Every obstacle level takes the live plan, plus tiles included. exh() and allHit() test
-  // legality with a bare cyc(rank[i],w) instead of slotTakes(), so the prover's copy of the
-  // matching rule knows about none of these: it thinks a plus tile is an ordinary card the
-  // player spends a match on, a wild is never playable, a double has one rank, and a lock is
-  // a permanent blocker. On a plus level that is not a weaker proof, it is a proof about a
-  // different game - ISSUE-011 - and a false proof is exactly the failure this project's
-  // headline number exists to catch. Steering honestly beats proving the wrong thing.
-  const bends=(WILDS.size>0||DBLS.size>0||LOCKS.size>0||KEYS.size>0||UDN>0||PLUSTILES>0);
+  // The gate now reads the brain rather than a hand-maintained list. Both provers share
+  // canMatch() as of stage 0, so they no longer hold a wrong rule - but sharing the rule is
+  // not the same as modelling the obstacle. A plus tile still has to close the cleared set
+  // and grow the deck; a lock and key still need a pair-collect move; a double still needs
+  // a two-valued waste in the memo key. Until each is taught, its level is steered live.
+  const bends=!proverTaught();
   const plan=(FORCELIVE||bends)?FORCEPLAN:((known&&known.d==='L')?LIVEPLAN:PLAN);
   BUILDING={tgt:tgt,vals:vals,deadv:deadv,out:null,sd:0,usedMode:0,stage:0,plan:plan,cached:!!known};
   setBusy(plan[0].msg);
@@ -2150,6 +2237,7 @@ function finishBuild(){
   const row=(a,b)=>'<tr><td class="k">'+a+'</td><td class="v">'+b+'</td></tr>';
   P.innerHTML=row('Level',STRUCT)+
     row('Outcome','<span class="day-tag">'+out.tgt.d(out.tv)+'</span>')+
+    row('Obstacles',brainLine())+
     row('Priority','Streak denial \u2014 core logic, every level')+
     row('Chains',out.ln.join(' \u00b7 ')+' <span class="delta delta-neu">clamp '+out.clamp+'</span>')+
     (out.pace!==undefined?
