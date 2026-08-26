@@ -52,6 +52,7 @@ for(let li=0;li<LEVELS.length;li++){
   }
 }`,S);
 
+const ROWSALL=S.ROWS;
 const K=['cap','radix','winmiss','losemiss','denial','payout','fork','ok'];
 const byLevel={};
 for(const r of S.ROWS){
@@ -75,6 +76,20 @@ const structural=t.winmiss+t.losemiss+t.radix;
 console.log('  Totals   cap '+t.cap+'   structural (winmiss+losemiss+radix) '+structural+
             '   floors '+(t.denial+t.payout+t.fork)+'   proved '+t.ok);
 console.log('');
+// A level that is neither fully verified nor fully live is the interesting one: something
+// about ONE outcome is out of reach while its siblings are fine. Print those rows.
+const partial=Object.keys(byLevel).filter(l=>byLevel[l].ver>0&&byLevel[l].ver<byLevel[l].tot);
+if(partial.length){
+  console.log('  Per-outcome detail for partially verified levels');
+  console.log('');
+  console.log('  level  outcome                 ver  '+K.map(k=>k.padStart(9)).join(''));
+  console.log('  '+'-'.repeat(30+5+K.length*9));
+  for(const r of ROWSALL){
+    if(partial.indexOf(r.lvl)<0)continue;
+    console.log('  '+r.lvl.padEnd(7)+r.out.padEnd(24)+(r.verified?'yes':'NO ').padEnd(5)+
+      K.map(k=>String(r.why[k]||0).padStart(9)).join(''));}
+  console.log('');
+}
 if(t.cap===0&&structural>0)
   console.log('  VERDICT: no candidate ever ran out of budget. Every refusal is a deal that\n'+
               '  genuinely cannot hold its target on every legal line. Raising the 250k cap\n'+

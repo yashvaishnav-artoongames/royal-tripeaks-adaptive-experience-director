@@ -941,8 +941,10 @@ const OBS={
         provable:false, taught:false,
         why:'the ranks it grants are chosen when it fires, so no deck can be pre-committed'},
   lock:{name:'Lock & Key',   matched:false, selfClear:2, paysDeck:false, bends:null,
-        provable:true,  taught:false,
-        why:'deterministic once both halves are revealed; needs a pair-collect move'},
+        provable:true,  taught:true,
+        why:'stage 3: the provers carry a pair-collect branch - two tiles out of the mask, '+
+            'no draw, waste and meter untouched - and reproduce the lowest-index partner '+
+            'search rather than letting the imaginary player choose the pairing'},
   wild:{name:'Wild',         matched:true,  selfClear:0, paysDeck:false, bends:'any',
         provable:true,  taught:true,
         why:'rankless and legal against any non-wild waste - no new state at all. Stage 1: '+
@@ -1876,22 +1878,42 @@ function exh(rank,deck,seed,win,tv,needPay){
       if(!win||deck.length-dj!==tv){bad=true;EXHWHY.winmiss++;return null;}
       res={d:0,p:0};
     }else{
-      const lg=[];
+      const lg=[],rkeys=[];let loLock=-1;
       const Sv=SCROLL?scrollOf(function(z){return !!(z<26?((mlo>>>z)&1):((mhi>>>(z-26))&1));}):0;
       for(let i=0;i<N;i++){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
+        // A lock or key is never a match target - canMatch refuses both - but it IS a move
+        // when its partner is also revealed. Collected here rather than dropped.
+        if(isLockSlot(i)){if(loLock<0)loLock=i;continue;}
+        if(isKeySlot(i)){rkeys.push(i);continue;}
         if(canMatch(i,w,rank,wasteSecond(w,wd)))lg.push(i);
       }
-      if(lg.length){
-        if(lg.length>1)fk++;
+      // No revealed lock means no key can do anything: a half with no partner is inert and
+      // keeps blocking whatever sits under it. Every revealed key is tappable, and each
+      // takes the LOWEST-INDEX revealed lock - not the nearest, and not one the player
+      // picks. Modelling the choice they do not have would prove a different game.
+      if(loLock<0)rkeys.length=0;
+      if(lg.length||rkeys.length){
+        if(lg.length+rkeys.length>1)fk++;
         const nm=(mt+1)%PIPS,ad=nm===0?1:0;let dm=99,pm=99;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
           const r=f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj,nm);
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p+ad);}
+        // Two tiles leave for one tap. No draw is spent, the waste is untouched, and the
+        // streak meter does not move - a pair collect is not a match, so mt is carried
+        // through unchanged and no payout is credited. The mask still shrinks by two, so
+        // the recursion cannot stall on it.
+        for(const kk of rkeys){
+          let nlo=mlo,nhi=mhi;
+          if(kk<26)nlo|=1<<kk; else nhi|=1<<(kk-26);
+          if(loLock<26)nlo|=1<<loLock; else nhi|=1<<(loLock-26);
+          const r=f(nlo,nhi,w,wd,dj,mt);
+          if(!r)return null;
+          dm=Math.min(dm,r.d);pm=Math.min(pm,r.p);}
         res={d:dm,p:pm};
       }else if(dj<deck.length){
         // A drawn card is never a Double Value - the obstacle is a board-slot property.
@@ -1927,18 +1949,32 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank,w0d){
     let ok;
     if(mlo===FLO&&mhi===FHI)ok=win&&deck.length-dj===tv;
     else{
-      const lg=[];
+      const lg=[],rkeys=[];let loLock=-1;
       const Sv=SCROLL?scrollOf(function(z){return !!(z<26?((mlo>>>z)&1):((mhi>>>(z-26))&1));}):0;
       for(let i=0;i<N;i++){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
+        // A lock or key is never a match target - canMatch refuses both - but it IS a move
+        // when its partner is also revealed. Collected here rather than dropped.
+        if(isLockSlot(i)){if(loLock<0)loLock=i;continue;}
+        if(isKeySlot(i)){rkeys.push(i);continue;}
         if(canMatch(i,w,rank,wasteSecond(w,wd)))lg.push(i);
       }
-      if(lg.length){ok=true;
+      // No revealed lock means no key can do anything: a half with no partner is inert and
+      // keeps blocking whatever sits under it. Every revealed key is tappable, and each
+      // takes the LOWEST-INDEX revealed lock - not the nearest, and not one the player
+      // picks. Modelling the choice they do not have would prove a different game.
+      if(loLock<0)rkeys.length=0;
+      if(lg.length||rkeys.length){ok=true;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          if(!f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj)){ok=false;break;}}}
+          if(!f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj)){ok=false;break;}}
+        if(ok)for(const kk of rkeys){
+          let nlo=mlo,nhi=mhi;
+          if(kk<26)nlo|=1<<kk; else nhi|=1<<(kk-26);
+          if(loLock<26)nlo|=1<<loLock; else nhi|=1<<(loLock-26);
+          if(!f(nlo,nhi,w,wd,dj)){ok=false;break;}}}
       else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}

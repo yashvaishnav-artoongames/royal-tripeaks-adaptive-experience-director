@@ -274,7 +274,9 @@ wrong, one right — and the two together explain each other. See Stage 2 for th
 cost of an obstacle to the prover tracks how many ranks it lets the player answer with. Two is
 nearly free; thirteen is fatal.
 
-Predictions for stages 3–4 remain unmeasured. L41 stays live throughout, by design.
+**Stage 3 then shipped and L7 became verified 4/5** — the theory's first forward
+prediction, and it held. Only Stage 4 remains unmeasured. L41 stays live throughout, by
+design.
 
 ---
 
@@ -355,17 +357,44 @@ came near the budget.
 comparisons, 35 identical, 0 differing. Widening `WR` changes every key's integer value and
 none of its equivalence classes, so the memo behaves identically on levels without doubles.
 
-### Stage 3 — teach lock & key · unlocks L7
+### Stage 3 — teach lock & key · SHIPPED, L7 verified 4/5
 
-Add a move to the recursion: when a revealed key and a revealed lock both exist, one option
-is "collect the pair" — two tiles out of the mask, no draw spent, the waste untouched. No new
-key field.
+Both provers carry a pair-collect branch: two tiles out of the mask, no draw spent, the waste
+untouched, and `mt` carried through unchanged because a pair collect is not a match and cannot
+feed the streak meter. No new key field — the mask already records which tiles are gone, and it
+still shrinks by two, so the recursion cannot stall on it.
 
-Reproduce the lowest-index partner search here too, or the proof describes a game where the
-player chooses the pairing and the player does not.
+The lowest-index partner search is reproduced: every revealed key is a separate branch, and
+each takes the lowest-index revealed lock. Letting the imaginary player choose the pairing
+would prove a game they do not have.
 
-**Verify:** L7 across all five outcomes. Watch the `tv` arithmetic — a pair collect changes
-cards-left without changing the draw index.
+**Result — the theory's first real prediction, and it held:**
+
+```
+level   obstacle    extra ranks   verified   refusals   proved   hit rate
+L6      none                  0        5/5      9,995        9   ~1 in 1,110
+L7      lock & key            0        4/5     11,860       10   ~1 in 1,186
+L111    double               +1        5/5     22,539       20   ~1 in 1,127
+L21     wild                +12        0/5    104,501        0   none in 104,500
+```
+
+After Stage 2 the theory said the cost of an obstacle tracks **how many extra ranks it lets
+the player answer with**. Lock & key adds *none* — the tiles answer only each other — so it
+should have cost nothing. It cost nothing: L7's hit rate sits between L6's and L111's, and all
+three are within about 8% of one another while the wild remains infinitely worse. That is the
+first prediction this theory made in advance rather than after the fact.
+
+The verified director now owns **14 builds**, up from 5 before any teaching began.
+
+**Why 4/5 and not 5/5, and why it is not this stage's fault.** L7's Comfortable Lose reports
+`partition 21000` and — visible in the per-outcome detail — **all zeros across every `exh`
+counter**. The prover never ran for that outcome. The build failed 21,000 times at the
+partition stage, upstream of any proof, because that band wants 5–8 of 11 cards stranded on a
+layout whose lock/key pair clears two of them for free. That is arithmetic about the level's
+shape, not a limit of the prover, and the counters are what make the difference legible.
+
+**Verified no regression:** `prover-equivalence.js` against a stage-2 baseline — 70
+comparisons now that L111 is verified too, 70 identical, 0 differing.
 
 ### Stage 4 — teach plus · unlocks L12, closes ISSUE-011 properly
 
