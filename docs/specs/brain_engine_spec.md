@@ -400,7 +400,7 @@ shape, not a limit of the prover, and the counters are what make the difference 
 **Verified no regression:** `prover-equivalence.js` against a stage-2 baseline — 70
 comparisons now that L111 is verified too, 70 identical, 0 differing.
 
-### Stage 4 — teach plus · DESIGNED AND PRICED, deliberately not shipped
+### Stage 4 — teach plus · SHIPPED. L12 verified 5/5, and every proof holds in play
 
 Stage 4 was started, and the first thing it produced was a correction to this spec. The
 original plan above rested on *"no new key field"*, and that is false — see §3.3. Below is
@@ -440,7 +440,50 @@ state reduces to (ordered list of pending tiles, remaining count of the front bl
 3. **The pending-grant queue** in both provers, with the key widened to carry it.
 4. **Draws served from the queue first**, mirroring `splice(di,0,…)`: last emitted, first drawn.
 
-#### Why the gate is still closed
+#### Shipped — and verified against real play
+
+All four parts landed: `gen()` pre-commits granted ranks from the same `sup` the deal came
+from; `plusClose()` closes the mask over self-firing tiles and reports them in fire order;
+both provers carry the pending-grant queue; and a granted card is drawn before anything the
+level was dealt, mirroring `splice(di,0,…)` — last emitted, first drawn. `plusFire()` uses the
+pre-committed ranks on a verified level and still picks fresh ones on a live one, because
+nothing has been promised about those.
+
+```
+L12   plus   verified 5/5   5,018 refusals   13 proved   ~1 in 386   states 35–90
+radix 0  ·  cap 0  ·  no regression: 98 comparisons, 98 identical
+```
+
+**Plus is the easiest obstacle to prove, not the hardest** — the best hit rate of any level,
+better than the obstacle-free control. That follows from the theory rather than surprising it:
+plus adds no extra matching ranks, and it *hands the builder room* — free clears reduce the
+work and granted cards widen the deck.
+
+#### The check that actually matters, and what it caught
+
+`docs/measurements/proof-holds.js` is the only measurement here that can catch a wrong
+obstacle model. Every other one asks whether `exh()` accepted a deal; this one builds the
+level and then **plays it for real** — the same `play()`, `draw()` and `plusSweep()` the player
+drives — and demands that every run land exactly on target.
+
+**Result: 19 of 19 verified builds hold on every run.** The proofs describe the game the
+player gets.
+
+Getting there took two corrections, both worth recording:
+
+1. **`botPlay()` had no pair-collect move.** The project's main correctness harness could not
+   play a lock/key level at all — it drew until the deck died and reported a loss no proof had
+   claimed. All four L7 builds read as failures until this was fixed; they hold 4/4 after.
+   Stage 3 was correct all along and the harness was blind to it.
+2. **The first attribution of the remaining misses was wrong.** Both had large extra-card
+   grants, so grants looked like the cause — until the same measurement showed grants on
+   builds that *held*, including 98 on the obstacle-free control. The real cause: the recovery
+   ladder legitimately **moves `LV.tv`** when supply changes, and the check was comparing
+   against the build-time target. Against the target as it stands at the end of the run, both
+   land exactly, with `tvMoved` on all 25 runs. That is the documented behaviour class, not a
+   defect — but a harness that reads it as one is worse than no harness.
+
+#### Why the gate was closed before this
 
 A wrong plus model does not fail safe. It produces **proofs about a game the player is not
 playing** — which is ISSUE-011 exactly, the defect this entire engine exists to remove. Stages

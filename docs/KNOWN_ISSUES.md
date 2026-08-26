@@ -189,7 +189,16 @@ on demand, which is how it surfaced.
 ---
 
 **ISSUE-011 — `exh()` lets its imaginary player play Plus Cards**
-Severity: HIGH · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0
+Severity: HIGH · Status: FIXED · Introduced: 1.0.0 · Fixed: 1.3.0, reverted, **re-fixed properly by the brain engine**
+
+> **Closed for real this time.** The 1.3.0 fix refused tiles and closed the cleared set over
+> them, then went out with the revert. The brain engine closes it at the root instead: there is
+> now ONE matching rule (`canMatch`) that both the player and the prover call, so the prover
+> cannot hold a different opinion about what a plus tile is. Stage 4 then taught it the rest —
+> `gen()` pre-commits the granted ranks, `plusClose()` closes the mask over self-firing tiles,
+> and the pending-grant queue puts a granted card on top of the deck where the game puts it.
+> L12 is verified 5/5, and `docs/measurements/proof-holds.js` confirms all five land exactly on
+> target over 25 real play-throughs each. The original note below stands as history.
 
 **Fixed 1.3.0.** `exh()` and `allHit()` refuse plus tiles as `legals()` does, and
 `plusClose()` closes the cleared set over self-clearing tiles. Cost: verified WIN pairs 67 -> 64,

@@ -938,8 +938,10 @@ const LKSVG={
 // work queue, and a flag may only be flipped in the same change that teaches it.
 const OBS={
   plus:{name:'Plus Card',    matched:false, selfClear:1, paysDeck:true,  bends:null,
-        provable:false, taught:false,
-        why:'the ranks it grants are chosen when it fires, so no deck can be pre-committed'},
+        provable:true,  taught:true,
+        why:'stage 4: gen() pre-commits the granted ranks from the same supply the deal '+
+            'came from, plusClose() closes the mask over self-firing tiles, and the prover '+
+            'carries the pending-grant queue so a granted card is drawn before the deck'},
   lock:{name:'Lock & Key',   matched:false, selfClear:2, paysDeck:false, bends:null,
         provable:true,  taught:true,
         why:'stage 3: the provers carry a pair-collect branch - two tiles out of the mask, '+
@@ -1033,6 +1035,50 @@ const wasteAfterDraw=c=>isWildCard(c)?WILD_RANK:c[1];
 // stored - secondOf(primary) - so the prover's state needs one BIT, "is the waste a double",
 // not a second rank field. A wild waste has no primary to derive from, so it is never one.
 const wasteSecond=(w,wd)=>(wd&&w>=1&&w<=13)?secondOf(w):0;
+// plusSweep()'s rule, on a bitmask instead of the cleared set. Fire every tile whose blockers
+// are all cleared and keep going, because one tile can uncover the next. Returns the closed
+// mask and the tiles that fired IN FIRE ORDER, which the prover needs because each fire
+// splices its cards in front of the previous one. Idempotent on an already-closed mask.
+function plusClose(mlo,mhi){
+  if(!PLUSTILES)return [mlo,mhi,null];
+  let fired=null;
+  for(let guard=0;guard<64;guard++){
+    let hit=-1;
+    for(const k in PLUS){const i=+k;
+      if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;              // already fired
+      if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;   // still blocked
+      hit=i;break;}
+    if(hit<0)break;
+    if(hit<26)mlo|=1<<hit; else mhi|=1<<(hit-26);
+    (fired||(fired=[])).push(hit);
+  }
+  return [mlo,mhi,fired];
+}
+// Push the blocks a sweep just fired onto the front of the pending queue. Each plusFire()
+// splices at di, so a later fire lands IN FRONT of an earlier one - the queue therefore takes
+// the fired list reversed.
+function gqPush(gq,fired){
+  if(!fired)return gq;
+  let out=gq;
+  for(let z=0;z<fired.length;z++)out=[[PORD[fired[z]],PLUS[fired[z]]]].concat(out);
+  return out;
+}
+// How many granted cards are still waiting to be drawn.
+function gqLeft(gq){let n=0;for(let z=0;z<gq.length;z++)n+=gq[z][1];return n;}
+// One number for the memo key. Base is (tiles+1)*(maxValue+1) so an entry is (ordinal+1,
+// remaining) and 0 marks the end.
+function gqKey(gq){
+  let k=0,B=(PLUSTILES+1)*(PMAXV+1);
+  for(let z=0;z<gq.length;z++)k=k*B+(gq[z][0]+1)*(PMAXV+1)+gq[z][1];
+  return k;
+}
+// The card on top of the queue. Cards are drawn in REVERSE emission order, so the block's
+// remaining count indexes straight into its emission array.
+function gqTop(gq,grants){const e=gq[0];return grants[PTILE[e[0]]][e[1]-1];}
+function gqPop(gq){
+  const e=gq[0];
+  return (e[1]>1)?[[e[0],e[1]-1]].concat(gq.slice(1)):gq.slice(1);
+}
 // The player's view: live ranks, and the head's own second value when it is a double.
 // An up/down card needs no branch here - udTick writes its live rank into LV.rank, so the
 // ordinary path already reads what the card is worth right now.
@@ -1055,6 +1101,15 @@ function useLevel(ix){
   // the deck the level is really planned against is the authored deck plus their total.
   PLUSTOTAL=0;for(const k in PLUS)PLUSTOTAL+=PLUS[k];
   PLUSTILES=Object.keys(PLUS).length;
+  // Ordinals for the prover's pending-grant queue. A tile is identified in the memo key by
+  // its ordinal, not its slot, so the radix stays as small as the level allows.
+  PTILE=[];PORD={};for(const k in PLUS){PORD[+k]=PTILE.length;PTILE.push(+k);}
+  PMAXV=0;for(const k in PLUS)if(PLUS[k]>PMAXV)PMAXV=PLUS[k];
+  // Queue encoding radix. Each entry is (tile ordinal, cards remaining in that block), and
+  // there are at most PLUSTILES entries. Blocks drain front-first, but a block can be left
+  // part-drained when a later tile fires in front of it, so the remaining count has to be
+  // carried PER BLOCK - tracking only the front's would be wrong the first time that happens.
+  PGQR=PLUSTILES?Math.pow((PLUSTILES+1)*(PMAXV+1),PLUSTILES):1;
   // The tiles clear themselves, so they are not cards the player has to match. Lock and
   // key tiles are not matched either - they answer only each other - so both come out.
   LKTILES=LOCKS.size+KEYS.size;
@@ -1396,6 +1451,16 @@ function gen(tgt,tv,rng,mode){
     const r=rich(c);rank[i]=r;sup[r]--;}
   const sp=[];for(let i=0;i<(tgt.win?tv:0);i++){
     const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');const r=rich(c);sup[r]--;sp.push(r);}
+  // Grants have to be pre-committed or a plus level cannot be proved at all: supplyPick()
+  // chooses them when the tile fires, and a deck nobody has chosen yet is not a deck anyone
+  // can prove. Drawn from the same sup the rest of the deal came from, so the physical
+  // supply stays honest rather than quietly conjuring cards.
+  const grants={};
+  for(const k in PLUS){const gi=+k,gg=[];
+    for(let q=0;q<plusValue(gi);q++){
+      const c=ALL.filter(r=>sup[r]>0);if(!c.length)return fail('supply');
+      const r=rich(c);sup[r]--;gg.push(r);}
+    grants[gi]=gg;}
   const usd={};ALL.forEach(r=>usd[r]=0);
   const lab=r=>{const L=mixLabel(r,usd[r]||0);usd[r]++;return L;};
   const sd=lab(seed),LB=[],deck=[];
@@ -1403,6 +1468,7 @@ function gen(tgt,tv,rng,mode){
   for(const e of ev)if(e.t==='p')LB[e.i]=lab(rank[e.i]);
   for(let i=0;i<N;i++)if(!LB[i])LB[i]=lab(rank[i]);
   return {rank,LB,deck,seed,seedCard:sd,ln:br.ln,dl:br.dl,clamp:br.clamp,gaps:gaps.slice(),
+    grants:grants,
     dead:br.dead,needPay:br.needPay,pay:br.ln.reduce((a,b)=>a+pays(b),0),mode:mode};
 }
 // ---- bot agent -------------------------------------------------------------
@@ -1434,7 +1500,13 @@ function botPlay(pseed){
     const lg=legals();
     const leftNow=N-cl.size;
     if(leftNow===0){res={win:true,v:deckLeft()};break;}
-    if(lg.length){
+    // A ready pair is a real move and the bot had no way to make it, so every lock/key level
+    // was unplayable to it - it drew until the deck died and reported a loss the proof never
+    // claimed. skipToEnd() already takes pairs first for the same reason: two cards for no
+    // draw is never worse than a match.
+    if(lkReady()){
+      lkTap(lkFirst(KEYS));
+    }else if(lg.length){
       const pick=lg[Math.floor(rnd()*lg.length)];
       if(!expo(pick))bugs.push('played a card that was not exposed');
       play(pick);
@@ -1587,7 +1659,7 @@ function quickValidate(tgt,ms){
         t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
       for(let a=0;a<900;a++){
         const g=gen(tgt,cand,rng,0);if(!g)continue;
-        const v=exh(g.rank,g.deck,g.seed,tgt.win,cand,g.needPay);if(!v)continue;
+        const v=exh(g.rank,g.deck,g.seed,tgt.win,cand,g.needPay,g.grants);if(!v)continue;
         return {d:'V',tv:cand};}}}
   return {d:'L'};
 }
@@ -1854,7 +1926,7 @@ function popc(x){x=x-((x>>1)&0x55555555);x=(x&0x33333333)+((x>>2)&0x33333333);
 // bad short-circuits every later call, so exactly one of the first four counts per exh().
 let EXHWHY={cap:0,radix:0,winmiss:0,losemiss:0,denial:0,payout:0,fork:0,ok:0};
 function exhWhyReset(){EXHWHY={cap:0,radix:0,winmiss:0,losemiss:0,denial:0,payout:0,fork:0,ok:0};}
-function exh(rank,deck,seed,win,tv,needPay){
+function exh(rank,deck,seed,win,tv,needPay,grants){
   const memo=new Map();let cap=0,states=0,bad=false,fk=0;
   const DJR=deck.length+2;   // draw index: 0 .. deck.length, from THIS deck
   // Waste rank is 1..13 plus WILD, so WASTE_RADIX covers it - and the field is doubled to
@@ -1862,20 +1934,24 @@ function exh(rank,deck,seed,win,tv,needPay){
   // answers on two ranks rather than one. A second rank field would have been the obvious
   // move and the wrong one; the second value is secondOf(primary), so a bit is all it is.
   const WR=WASTE_RADIX*2;
-  function f(mlo,mhi,w,wd,dj,mt){
+  function f(mlo,mhi,w,wd,dj,mt,gq){
     if(bad)return null;
     if(++cap>250000){bad=true;EXHWHY.cap++;return null;}
     // a packed key is only sound while every field is inside its radix. If that ever
     // stops holding, refuse to verify rather than return a confident wrong proof -
     // refusing falls through to re-deal, then live, which are both safe.
-    if(dj>=DJR||w>=WASTE_RADIX||mt>=PIPS){bad=true;EXHWHY.radix++;return null;}
+    const gk=gqKey(gq);
+    if(dj>=DJR||w>=WASTE_RADIX||mt>=PIPS||gk>=PGQR){bad=true;EXHWHY.radix++;return null;}
     let inner=memo.get(mhi);
     if(inner===undefined){inner=new Map();memo.set(mhi,inner);}
-    const key=((mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj)*PIPS+mt;
+    const key=(((mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj)*PIPS+mt)*PGQR+gk;
     const hv=inner.get(key);if(hv!==undefined)return hv;
     let res;
+    const gleft=gqLeft(gq);
     if(mlo===FLO&&mhi===FHI){
-      if(!win||deck.length-dj!==tv){bad=true;EXHWHY.winmiss++;return null;}
+      // Draws unused counts the pending grants too: they are in the deck the player is
+      // holding, whether or not they came from it originally.
+      if(!win||(deck.length-dj)+gleft!==tv){bad=true;EXHWHY.winmiss++;return null;}
       res={d:0,p:0};
     }else{
       const lg=[],rkeys=[];let loLock=-1;
@@ -1900,7 +1976,8 @@ function exh(rank,deck,seed,win,tv,needPay){
         const nm=(mt+1)%PIPS,ad=nm===0?1:0;let dm=99,pm=99;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          const r=f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj,nm);
+          const pcz=plusClose(nlo,nhi);
+          const r=f(pcz[0],pcz[1],wasteAfterPlay(i,rank),isDblSlot(i),dj,nm,gqPush(gq,pcz[2]));
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p+ad);}
         // Two tiles leave for one tap. No draw is spent, the waste is untouched, and the
@@ -1911,20 +1988,28 @@ function exh(rank,deck,seed,win,tv,needPay){
           let nlo=mlo,nhi=mhi;
           if(kk<26)nlo|=1<<kk; else nhi|=1<<(kk-26);
           if(loLock<26)nlo|=1<<loLock; else nhi|=1<<(loLock-26);
-          const r=f(nlo,nhi,w,wd,dj,mt);
+          const pcz=plusClose(nlo,nhi);
+          const r=f(pcz[0],pcz[1],w,wd,dj,mt,gqPush(gq,pcz[2]));
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p);}
         res={d:dm,p:pm};
+      }else if(gleft>0){
+        // A granted card sits on top of the deck, so it is drawn before anything the level
+        // was dealt. Never a Double Value - that is a board-slot property.
+        const r=f(mlo,mhi,gqTop(gq,grants),false,dj,0,gqPop(gq));if(!r)return null;
+        res={d:r.d+(mt===PIPS-1?1:0),p:r.p};
       }else if(dj<deck.length){
         // A drawn card is never a Double Value - the obstacle is a board-slot property.
-        const r=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1,0);if(!r)return null;
+        const r=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1,0,gq);if(!r)return null;
         res={d:r.d+(mt===PIPS-1?1:0),p:r.p};
       }else{
         const c=popc(mlo)+popc(mhi);
         if(win||N-c!==tv){bad=true;EXHWHY.losemiss++;return null;}
         res={d:0,p:0};}}
     inner.set(key,res);states++;return res;}
-  const r=f(0,0,seed,false,0,0);
+  // A tile with no blockers fires on the deal, before the player has done anything.
+  const pc0=plusClose(0,0);
+  const r=f(pc0[0],pc0[1],seed,false,0,0,gqPush([],pc0[2]));
   if(bad||!r)return null;
   if(deck.length>0&&r.d<1){EXHWHY.denial++;return null;}
   if(needPay&&r.p<1){EXHWHY.payout++;return null;}
@@ -1939,15 +2024,21 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank,w0d){
   const memo=new Map();let cap=0,unsound=false;
   const DJR=deck.length+2, WR=WASTE_RADIX*2;
   const startD=(w0d===undefined)?!!(wl&&wl[3]):!!w0d;
-  function f(mlo,mhi,w,wd,dj){
+  // Grants for tiles that have not fired YET. The queue starts empty on purpose: a tile
+  // that already fired is in the mask, so plusClose will not fire it again, and the cards it
+  // gave are already sitting in dk. Only the future ones need modelling.
+  const grants=(LV&&LV.grants)?LV.grants:null;
+  function f(mlo,mhi,w,wd,dj,gq){
     if(++cap>90000)return false;
-    if(dj>=DJR||w>=WASTE_RADIX){unsound=true;return false;}   // cannot prove, so do not claim to
+    const gk=gqKey(gq);
+    if(dj>=DJR||w>=WASTE_RADIX||gk>=PGQR){unsound=true;return false;}   // cannot prove, so do not claim to
     let inner=memo.get(mhi);
     if(inner===undefined){inner=new Map();memo.set(mhi,inner);}
-    const key=(mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj;
+    const key=((mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj)*PGQR+gk;
     const hv=inner.get(key);if(hv!==undefined)return hv;
     let ok;
-    if(mlo===FLO&&mhi===FHI)ok=win&&deck.length-dj===tv;
+    const gleft=gqLeft(gq);
+    if(mlo===FLO&&mhi===FHI)ok=win&&(deck.length-dj)+gleft===tv;
     else{
       const lg=[],rkeys=[];let loLock=-1;
       const Sv=SCROLL?scrollOf(function(z){return !!(z<26?((mlo>>>z)&1):((mhi>>>(z-26))&1));}):0;
@@ -1969,16 +2060,20 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank,w0d){
       if(lg.length||rkeys.length){ok=true;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          if(!f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj)){ok=false;break;}}
+          const pz=plusClose(nlo,nhi);
+          if(!f(pz[0],pz[1],wasteAfterPlay(i,rank),isDblSlot(i),dj,gqPush(gq,pz[2]))){ok=false;break;}}
         if(ok)for(const kk of rkeys){
           let nlo=mlo,nhi=mhi;
           if(kk<26)nlo|=1<<kk; else nhi|=1<<(kk-26);
           if(loLock<26)nlo|=1<<loLock; else nhi|=1<<(loLock-26);
-          if(!f(nlo,nhi,w,wd,dj)){ok=false;break;}}}
-      else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1);
+          const pz=plusClose(nlo,nhi);
+          if(!f(pz[0],pz[1],w,wd,dj,gqPush(gq,pz[2]))){ok=false;break;}}}
+      else if(gleft>0&&grants)ok=f(mlo,mhi,gqTop(gq,grants),false,dj,gqPop(gq));
+      else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1,gq);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
-  return f(m0lo,m0hi,w0,startD,d0);
+  const pz0=plusClose(m0lo,m0hi);
+  return f(pz0[0],pz0[1],w0,startD,d0,gqPush([],pz0[2]));
 }
 // cl starts as an EMPTY set, not undefined. It is assigned properly in reset(), but the plan
 // panel is rendered by finishBuild() BEFORE reset() runs, and anything that reads the board
@@ -2214,7 +2309,7 @@ function searchPass(mode,ms){
         t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};
       for(let a=0;a<1500&&!done();a++){
         const g=gen(B.tgt,cand,rng,mode);if(!g)continue;
-        const v=exh(g.rank,g.deck,g.seed,B.tgt.win,cand,g.needPay);
+        const v=exh(g.rank,g.deck,g.seed,B.tgt.win,cand,g.needPay,g.grants);
         if(!v){fail('verify');continue;}
         g.ver=v;g.tgt=B.tgt;g.tv=cand;g.sd=B.sd;g.pace=paceScore(g);
         pool.push(g);
@@ -2723,6 +2818,7 @@ let PLUS={};                 // slot -> Value, for the current level
 let PLUSFIRED=[];            // slots that have fired this attempt, in order
 let PLUSTOTAL=0;             // cards every plus tile on this level will hand out
 let PLUSTILES=0;             // how many tiles, i.e. free clears the board gives away
+let PTILE=[], PORD={}, PMAXV=0, PGQR=1;   // prover-side plus bookkeeping, see useLevel
 let MATCHN=0;                // board cards the player actually has to match
 let LKTILES=0;               // lock and key tiles on this level, keys plus locks
 let LKDONE=[];               // [key,lock] pairs collected this attempt, in order
@@ -2795,8 +2891,12 @@ function plusFire(i){
   const added=[];
   // Cards land on TOP of the deck, so they are drawn next, in reverse order of emission.
   // dk[di] is next here, so they splice in at di.
+  // On a verified level the ranks were chosen at build time and PROVED against; picking
+  // fresh ones here would deal a deck nobody verified. Live levels still pick, because
+  // nothing has been promised about them.
+  const pre=(LV&&LV.grants)?LV.grants[i]:null;
   for(let g=0;g<val;g++){
-    const r=supplyPick();
+    const r=(pre&&pre[g]!==undefined)?pre[g]:supplyPick();
     if(r===undefined)break;
     const L2=supplyLabel(r);
     dk.splice(di,0,[L2[0]+L2[1],r,L2[2],true]);   // [3]: granted, not core supply
