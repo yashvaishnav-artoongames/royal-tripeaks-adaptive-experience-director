@@ -26,16 +26,20 @@ function ctx(file){
   vm.createContext(s); vm.runInContext(js,s); return s;
 }
 
-// STAGE-0 VARIANT. Every built-in level now carries an obstacle, so every one is steered
-// live, so genLive returns an empty deck and the capture below skips all of them - the
-// harness compares nothing and reports agreement, which is the ISSUE-001 shape exactly.
-// Stripping the obstacle fields in BOTH contexts gives the prover levels it owns, on the
-// same real geometry, which is what the comparison needs.
+// A level the prover does not own is steered live, and a live level has an empty deck, and
+// the capture below skips empty decks. When every built-in level carried an obstacle this
+// harness compared NOTHING and still printed agreement - the ISSUE-001 shape exactly. L6 is
+// the control level that stops that, so the default run is now honest without help.
+//
+// AED_STRIP=1 additionally removes the obstacle fields from every OTHER level in both
+// contexts, trading fidelity for coverage: more geometry through the prover, but on boards
+// the real game never deals. Useful for a broad sweep, never as the only evidence.
 const STRIP=`LEVELS.forEach(function(L){delete L.plus;delete L.wild;delete L.dbl;
   delete L.lock;delete L.key;delete L.ud;});`;
 const A=ctx(BASE);   // old radix
 const B=ctx(ROOT);
-vm.runInContext(STRIP,A);vm.runInContext(STRIP,B);          // new radix
+if(process.env.AED_STRIP){vm.runInContext(STRIP,A);vm.runInContext(STRIP,B);
+  console.log('  AED_STRIP=1 - obstacle fields removed from every level in both contexts');}          // new radix
 
 // 1. capture real inputs from real builds, in the OLD context
 vm.runInContext(`

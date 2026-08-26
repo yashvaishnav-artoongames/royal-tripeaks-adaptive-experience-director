@@ -786,7 +786,18 @@ const LEVELS=[
  pos:[[-165,132],[-165,50],[-216,-17],[-116,-17],[-264,38],[-66,38],[-165,-66],[165,-56],[165,26],[114,93],[214,93],[66,38],[264,38],[165,142]],
  rot:[0,0,0,0,0,0,0,0,0,0,0,0,0,0],
  dep:DD([[0,[1]],[1,[3,2]],[2,[6,4]],[3,[5,6]],[4,[]],[5,[]],[6,[]],[7,[8]],[8,[10,9]],[9,[13,11]],[10,[12,13]],[11,[]],[12,[]],[13,[]]]),
- ud:{"6":-1,"13":1}}
+ ud:{"6":-1,"13":1}},
+// THE CONTROL. No obstacle of any kind, which is the entire point: every other built-in level
+// carries one, so every other level is steered live, so the verified director owns nothing and
+// the equivalence guard has nothing to compare. It reported agreement over zero cases once
+// already - a vacuous pass reads exactly like a real one.
+// Shipped unchanged through 1.1.1 as L6, so this is real geometry with a history rather than
+// something invented to make a harness happy. 21 cards and deck 10 is L12's size class, which
+// makes it a fair read against the plus level too.
+{name:'L6 \u2014 21 cards, deck 10 \u00b7 no obstacle (control)',short:'L6',N:21,deckN:10,scroll:false,
+ pos:[[0,133],[107,126],[-107,126],[0,-10],[54,92],[-54,92],[0,50],[234,106],[347,106],[211,98],[234,-52.99998],[347,-53.99998],[292,-38.99998],[306,54],[-234,106],[-347,106],[-211,98],[-234,-52.99998],[-347,-53.99998],[-292,-38.99998],[-306,54]],
+ rot:[0,-10,10,0,0,0,0,0,0,-20,0,0,0,-30,0,0,20,0,0,0,30],
+ dep:DD([[0,[4,5]],[1,[4]],[2,[5]],[3,[4,5]],[4,[6]],[5,[6]],[6,[]],[7,[9,13]],[8,[13]],[9,[]],[10,[12]],[11,[12]],[12,[13]],[13,[]],[14,[16,20]],[15,[20]],[16,[]],[17,[19]],[18,[19]],[19,[20]],[20,[]]])}
 ];
 const OUT=[
 {n:'Comfortable Win',win:true,lo:4,hi:6,d:v=>'Comfortable Win \u2014 exactly '+v+' draws unused'},
@@ -1889,7 +1900,11 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
     inner.set(key,ok);return ok;}
   return f(m0lo,m0hi,w0,d0);
 }
-let LV=null,cl,wl,wr,di,k,log,beat,act,note,stack,wild,wx,py,dk,miss,rep,health,RUNLEFT=0,replans=0;
+// cl starts as an EMPTY set, not undefined. It is assigned properly in reset(), but the plan
+// panel is rendered by finishBuild() BEFORE reset() runs, and anything that reads the board
+// at that moment - expo(), readBoard(), brainLine() - would dereference undefined. "Nothing
+// is cleared yet" is the correct answer for a level that has not been dealt, so say it.
+let LV=null,cl=new Set(),wl,wr,di,k,log,beat,act,note,stack,wild,wx,py,dk,miss,rep,health,RUNLEFT=0,replans=0;
 const TG={lines:true,count:true,fade:true,reveal:false};
 const expo=i=>!cl.has(i)&&(DEP[i]||[]).every(p=>cl.has(p));
 const gone=i=>cl.has(i);
