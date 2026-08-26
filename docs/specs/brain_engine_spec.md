@@ -269,8 +269,12 @@ Two consequences worth deciding before stages 2–4:
    design decision about what "verified" promises, and it is above this spec's pay grade —
    it belongs in `DECISIONS.md` once someone chooses.
 
-Predictions for stages 2–4 stand unmeasured, and this one is a reminder that they are
-predictions. L41 stays live throughout, by design.
+**Stage 2 then shipped and L111 DID become verified, 5/5.** So the score on predictions is one
+wrong, one right — and the two together explain each other. See Stage 2 for the gradient: the
+cost of an obstacle to the prover tracks how many ranks it lets the player answer with. Two is
+nearly free; thirteen is fatal.
+
+Predictions for stages 3–4 remain unmeasured. L41 stays live throughout, by design.
 
 ---
 
@@ -315,15 +319,41 @@ turn out to be very different things, which is the most useful thing this stage 
 **Verified no regression:** `prover-equivalence.js` against a stage-0 baseline, 5 captured
 inputs, 35 comparisons, 35 identical, 0 differing. The control level is untouched.
 
-### Stage 2 — teach double · unlocks L111
+### Stage 2 — teach double · SHIPPED, and L111 is verified 5/5
 
-Add the second value to the waste. Only one bit is needed: the second value is *derived*
-(`secondOf(primary)`), so the state needs "is the waste a double", not another rank.
-`WR` 15 → 30, or a separate `×2` factor.
+The waste field is doubled (`WR = WASTE_RADIX*2`) to carry one bit: whether the card on the
+waste is itself a Double Value and so answers on two ranks. A second *rank* field would have
+been the obvious move and the wrong one — the second value is `secondOf(primary)`, so a bit is
+all it is. `wasteSecond(w,wd)` decodes it; a wild waste has no primary to derive from and is
+never a double.
 
-**Verify:** L111 across all five outcomes; confirm both branch orders in `slotTakes` are
-reachable — the ordinary rule is tried before the fallbacks, and that ordering decides which
-branch a tap resolves on.
+`allHit` gained a trailing `w0d`. Every caller passes the live head, so it defaults to reading
+`wl[3]` — the same field `slotTakes()` uses — rather than making nine call sites compute a
+value they would all compute identically.
+
+**Result — the prediction held this time:**
+
+```
+level   obstacles   verified   structural refusals   proved   hit rate
+L6      none             5/5                 9,881        9   ~1 in 1,100
+L111    dbl              5/5                25,457       20   ~1 in 1,270
+L21     wild             0/5               105,987        0   none in 106,000
+```
+
+The verified director owns **10 builds** where it owned 5 before, and L111 is the first
+obstacle level it has ever owned.
+
+**And the gradient confirms the Stage 1 diagnosis.** The hit rate tracks how much choice the
+obstacle hands the player: a double answers **two** ranks and costs almost nothing (1,270 vs
+1,100 against the control); a wild answers **thirteen** and costs everything. That is the same
+force in both cases, and it is now measured at two points rather than argued from one.
+
+`cap` remains **0** everywhere — the memo key doubled exactly as §3.2 predicted and nothing
+came near the budget.
+
+**Verified no regression:** `prover-equivalence.js` against a stage-1 baseline, 35
+comparisons, 35 identical, 0 differing. Widening `WR` changes every key's integer value and
+none of its equivalence classes, so the memo behaves identically on levels without doubles.
 
 ### Stage 3 — teach lock & key · unlocks L7
 

@@ -949,8 +949,9 @@ const OBS={
             'canMatch already answered it, and both provers now write WILD_RANK to the waste '+
             'after playing one instead of an undefined rank'},
   dbl: {name:'Double Value', matched:true,  selfClear:0, paysDeck:false, bends:'two',
-        provable:true,  taught:false,
-        why:'needs one extra bit in the memo key for a two-valued waste'},
+        provable:true,  taught:true,
+        why:'stage 2: the waste field is doubled to carry one bit, "the head is itself a '+
+            'double". The second value is secondOf(primary), so a bit is all it needs'},
   ud:  {name:'Up & Down',    matched:true,  selfClear:0, paysDeck:false, bends:'moving',
         provable:false, taught:false,
         why:'rank is a function of the move count; the live rank costs 13^k in the key'}
@@ -1026,6 +1027,10 @@ const wasteAfterPlay=(i,rank)=>isWildSlot(i)?WILD_RANK:rank[i];
 // into the key, where it coerces to 0 and quietly aliases with a real value. Deck wilds reach
 // the prover through streak rewards on a verified level, so this was live, not theoretical.
 const wasteAfterDraw=c=>isWildCard(c)?WILD_RANK:c[1];
+// The waste's SECOND value, for a head that is itself a double. It is derived rather than
+// stored - secondOf(primary) - so the prover's state needs one BIT, "is the waste a double",
+// not a second rank field. A wild waste has no primary to derive from, so it is never one.
+const wasteSecond=(w,wd)=>(wd&&w>=1&&w<=13)?secondOf(w):0;
 // The player's view: live ranks, and the head's own second value when it is a double.
 // An up/down card needs no branch here - udTick writes its live rank into LV.rank, so the
 // ordinary path already reads what the card is worth right now.
@@ -1850,17 +1855,21 @@ function exhWhyReset(){EXHWHY={cap:0,radix:0,winmiss:0,losemiss:0,denial:0,payou
 function exh(rank,deck,seed,win,tv,needPay){
   const memo=new Map();let cap=0,states=0,bad=false,fk=0;
   const DJR=deck.length+2;   // draw index: 0 .. deck.length, from THIS deck
-  const WR=WASTE_RADIX;      // waste rank: 1..13, and WILD once it is a card
-  function f(mlo,mhi,w,dj,mt){
+  // Waste rank is 1..13 plus WILD, so WASTE_RADIX covers it - and the field is doubled to
+  // carry one more fact: whether the card on the waste is itself a Double Value, and so
+  // answers on two ranks rather than one. A second rank field would have been the obvious
+  // move and the wrong one; the second value is secondOf(primary), so a bit is all it is.
+  const WR=WASTE_RADIX*2;
+  function f(mlo,mhi,w,wd,dj,mt){
     if(bad)return null;
     if(++cap>250000){bad=true;EXHWHY.cap++;return null;}
     // a packed key is only sound while every field is inside its radix. If that ever
     // stops holding, refuse to verify rather than return a confident wrong proof -
     // refusing falls through to re-deal, then live, which are both safe.
-    if(dj>=DJR||w>=WR||mt>=PIPS){bad=true;EXHWHY.radix++;return null;}
+    if(dj>=DJR||w>=WASTE_RADIX||mt>=PIPS){bad=true;EXHWHY.radix++;return null;}
     let inner=memo.get(mhi);
     if(inner===undefined){inner=new Map();memo.set(mhi,inner);}
-    const key=((mlo*WR+w)*DJR+dj)*PIPS+mt;
+    const key=((mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj)*PIPS+mt;
     const hv=inner.get(key);if(hv!==undefined)return hv;
     let res;
     if(mlo===FLO&&mhi===FHI){
@@ -1873,26 +1882,27 @@ function exh(rank,deck,seed,win,tv,needPay){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
-        if(canMatch(i,w,rank,0))lg.push(i);
+        if(canMatch(i,w,rank,wasteSecond(w,wd)))lg.push(i);
       }
       if(lg.length){
         if(lg.length>1)fk++;
         const nm=(mt+1)%PIPS,ad=nm===0?1:0;let dm=99,pm=99;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          const r=f(nlo,nhi,wasteAfterPlay(i,rank),dj,nm);
+          const r=f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj,nm);
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p+ad);}
         res={d:dm,p:pm};
       }else if(dj<deck.length){
-        const r=f(mlo,mhi,wasteAfterDraw(deck[dj]),dj+1,0);if(!r)return null;
+        // A drawn card is never a Double Value - the obstacle is a board-slot property.
+        const r=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1,0);if(!r)return null;
         res={d:r.d+(mt===PIPS-1?1:0),p:r.p};
       }else{
         const c=popc(mlo)+popc(mhi);
         if(win||N-c!==tv){bad=true;EXHWHY.losemiss++;return null;}
         res={d:0,p:0};}}
     inner.set(key,res);states++;return res;}
-  const r=f(0,0,seed,0,0);
+  const r=f(0,0,seed,false,0,0);
   if(bad||!r)return null;
   if(deck.length>0&&r.d<1){EXHWHY.denial++;return null;}
   if(needPay&&r.p<1){EXHWHY.payout++;return null;}
@@ -1900,15 +1910,19 @@ function exh(rank,deck,seed,win,tv,needPay){
   EXHWHY.ok++;
   return {minDen:r.d,minPay:r.p,states:states,forks:fk};
 }
-function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
+// w0d says whether the card currently ON the waste is a double. Every caller passes the
+// live head, so it defaults to reading wl[3] - the same field slotTakes() uses - rather than
+// making nine call sites carry a value they would all compute identically.
+function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank,w0d){
   const memo=new Map();let cap=0,unsound=false;
-  const DJR=deck.length+2, WR=WASTE_RADIX;
-  function f(mlo,mhi,w,dj){
+  const DJR=deck.length+2, WR=WASTE_RADIX*2;
+  const startD=(w0d===undefined)?!!(wl&&wl[3]):!!w0d;
+  function f(mlo,mhi,w,wd,dj){
     if(++cap>90000)return false;
-    if(dj>=DJR||w>=WR){unsound=true;return false;}   // cannot prove, so do not claim to
+    if(dj>=DJR||w>=WASTE_RADIX){unsound=true;return false;}   // cannot prove, so do not claim to
     let inner=memo.get(mhi);
     if(inner===undefined){inner=new Map();memo.set(mhi,inner);}
-    const key=(mlo*WR+w)*DJR+dj;
+    const key=(mlo*WR+(w+(wd?WASTE_RADIX:0)))*DJR+dj;
     const hv=inner.get(key);if(hv!==undefined)return hv;
     let ok;
     if(mlo===FLO&&mhi===FHI)ok=win&&deck.length-dj===tv;
@@ -1919,16 +1933,16 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
         if(i<26?((mlo>>>i)&1):((mhi>>>(i-26))&1))continue;
         if((mlo&PMLO[i])!==PMLO[i]||(mhi&PMHI[i])!==PMHI[i])continue;
         if(!inView(i,Sv))continue;
-        if(canMatch(i,w,rank,0))lg.push(i);
+        if(canMatch(i,w,rank,wasteSecond(w,wd)))lg.push(i);
       }
       if(lg.length){ok=true;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          if(!f(nlo,nhi,wasteAfterPlay(i,rank),dj)){ok=false;break;}}}
-      else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),dj+1);
+          if(!f(nlo,nhi,wasteAfterPlay(i,rank),isDblSlot(i),dj)){ok=false;break;}}}
+      else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),false,dj+1);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
-  return f(m0lo,m0hi,w0,d0);
+  return f(m0lo,m0hi,w0,startD,d0);
 }
 // cl starts as an EMPTY set, not undefined. It is assigned properly in reset(), but the plan
 // panel is rendered by finishBuild() BEFORE reset() runs, and anything that reads the board
