@@ -4288,7 +4288,22 @@ function mainAct(){const lg=legals();
   else if(lg.length===0){if(lkReady())lkTap(lkFirst(KEYS));else draw();}}
 function reset(){if(!LV)return;
   // put the level back exactly as it was built: a re-plan belongs to one round only
-  if(LV.base){
+  if(!LV.base)LV.base={};
+  // The round TARGET is part of the round, and this was not putting it back. tv and band are
+  // moved by the recovery ladder; deckLen is grown by every extra-card grant. None were
+  // restored, so a second run on the same build inherited the first run mutated level -
+  // measurably: deckLen climbed 11, 12, 14, 17, 20, 21 over six runs of one L21 build, and the
+  // bot eventually ran past its 600-move cap on a level that should end in about 30. ANY
+  // harness that plays a build more than once was measuring a different level each time.
+  // First reset after a build captures; every later one restores.
+  if(LV.base.tv===undefined){
+    LV.base.tv=LV.tv;LV.base.band=LV.band?LV.band.slice():null;LV.base.deckLen=LV.deckLen;
+  }else{
+    LV.tv=LV.base.tv;
+    if(LV.base.band)LV.band=LV.base.band.slice();
+    if(LV.base.deckLen!==undefined)LV.deckLen=LV.base.deckLen;
+  }
+  {
     if(LV.base.rank){const r={};for(let i=0;i<N;i++)r[i]=LV.base.rank[i];LV.rank=r;}
     if(LV.base.LB)LV.LB=LV.base.LB.slice();
     if(LV.base.deck)LV.deck=LV.base.deck.slice();
