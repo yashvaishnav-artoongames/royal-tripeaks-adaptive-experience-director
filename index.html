@@ -1910,6 +1910,18 @@ function dReveal(newly){
     dBind(n,r);}
 }
 // bind the card being drawn: wake the board up, or deliberately fall flat
+// The board as it will be on the move the drawn card actually has to answer.
+//
+// A draw TICKS every revealed up/down tile. So a card chosen against the rank a tile shows
+// right now is chosen against a rank the tile is about to leave - and because the tick is
+// exactly one step, the director's intended match misses by exactly one, every single time.
+// On L41 that is not a rounding error, it is the mechanism: the live director was aiming at
+// where the target had been.
+// Everything that does not move is worth what it is worth, so this is the identity function
+// on every level without up/down tiles.
+function rankNext(i){
+  return (UDN&&isUDSlot(i)&&expo(i)&&onScreen(i))?udWrap(LV.rank[i]+UPDN[i]):LV.rank[i];}
+function boardNext(){const r={};for(let i=0;i<N;i++)r[i]=rankNext(i);return r;}
 function dDraw(){
   if(LV.wildAt&&LV.wildAt.length&&LV.wildAt.indexOf(di)>=0){
     LV.wildAt.splice(LV.wildAt.indexOf(di),1);
@@ -1920,14 +1932,26 @@ function dDraw(){
   const C=(LV.deckLen-di-1)-(LV.tgt.win?LV.tv:0);
   // goal reached on a losing target: every remaining draw must land dead so the board strands
   const wantDead=exposedNow.length>0&&(goal<=0||(C>=goal&&goal>0));
+  // Both branches ask the same question - will this card be answerable? - so both ask it of
+  // the brain, against the post-tick board, instead of re-deriving the rule from cyc().
+  // That also stops the DEAD branch lying on a wild level: cyc(undefined,x) is false, so a
+  // rankless wild read as 'takes nothing' and the director happily called a card dead that
+  // the wild would have answered. On a losing target that is how a level fails to strand.
+  const RNEXT=boardNext();
   let r;
   if(wantDead){
-    const dead=dFree().filter(x=>!exposedNow.some(i=>cyc(LV.rank[i],x)));
+    const dead=dFree().filter(x=>!exposedNow.some(i=>canMatch(i,x,RNEXT,0)));
     r=dPick(dead.length?dead:dFree());
   }else{
     const cands=[];
-    for(const i of exposedNow)for(const x of nb(LV.rank[i]))
-      if(LV.pool[x]>0&&cands.indexOf(x)<0)cands.push(x);
+    const add=function(x){if(LV.pool[x]>0&&cands.indexOf(x)<0)cands.push(x);};
+    for(const i of exposedNow){
+      if(isWildSlot(i)){for(const x of ALL)add(x);continue;}   // a wild answers anything
+      const ri=RNEXT[i];
+      if(ri===undefined)continue;
+      for(const x of nb(ri))add(x);
+      if(isDblSlot(i))for(const x of nb(secondOf(ri)))add(x);  // and a double answers twice
+    }
     r=dPick(cands.length?cands:dFree());}
   if(r===undefined)r=dPick(dFree());
   if(r===undefined)return null;
