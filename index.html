@@ -744,7 +744,7 @@ td.v{font-weight:500;}
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.5.0';
+const APP_VERSION='1.6.0';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -1972,39 +1972,42 @@ function dReveal(newly){
     if(cont>0){const c=nb(w).filter(x=>LV.pool[x]>0);
       if(c.length){r=dPick(c);w=r;cont--;}}
     if(r===undefined){
+      // INERT MUST MEAN INERT.
+      //
+      // Until 1.6.0 this asked two questions - is the card adjacent to the waste, and to the
+      // head of the chain being laid - and nothing asked the BOARD. So a card bound inert
+      // could still sit one step from some OTHER exposed card's rank, and the moment the
+      // player played that card its rank became the waste and the inert card was playable.
+      // A clear the plan never counted. dDraw's dead branch never had this hole: it has
+      // always asked the brain about every exposed slot. The asymmetry between the two was
+      // the bug.
+      //
+      // Measured, 50 runs x 11 live builds, random policy: 492/550 in target range with 57
+      // misses, every one EASIER than intended and none harder - the signature of leaked
+      // clears, not of a mis-sized plan. Asking the board here: 550/550, no misses. The
+      // verified director does not use dReveal and stayed at 950/950 either way.
+      //
+      // This test began as STARVE THE WILD, gated on a losing target with a wild present,
+      // where it was worth 13 runs. The GATE was the mistake, not the test. A wild makes the
+      // leak worse - WILD on the waste answers everything - but does not cause it, and a win
+      // target leaks the same way. The old comment warned that a tighter filter could
+      // over-strand a win past the band; measured, it does not, because the two fallbacks
+      // below keep the candidate set from emptying and the ladder still supplies exactly the
+      // clears dRunLen asked for.
       let inert=dFree().filter(x=>nb(wr).indexOf(x)<0&&nb(w).indexOf(x)<0);
-      // STARVE THE WILD.
-      //
-      // A wild tile on the board cannot be stopped from being played, and playing it hands
-      // the player one unconditional card - WILD on the waste answers everything. What turns
-      // that single free card into a burst is whether it CHAINS: the free card becomes the
-      // waste, and if anything else exposed is adjacent to it the run keeps going. On L21's
-      // Comfortable Lose that cascade is the whole miss - every failure was below the band,
-      // one run ending on 1 of a 5-8 target.
-      //
-      // So do not fight the wild, starve it. On a losing target with a wild still on the
-      // board, a newly revealed card must be a DEAD END: not adjacent to the waste, not to
-      // the running chain, and not to anything else already exposed. Then collecting the
-      // wild buys one card instead of six.
-      //
-      // Gated on a wild actually being present. The other live lose targets already sit at
-      // 9/10 and 10/10, and a tighter filter there could over-strand them past the band -
-      // the opposite failure, bought for nothing.
-      if(!LV.tgt.win&&readBoard().wilds>0){
-        const ex=[];
-        for(let z=0;z<N;z++)if(!cl.has(z)&&expo(z)&&onScreen(z)&&!isWildSlot(z))ex.push(z);
-        const tight=inert.filter(function(x){
-          // If this card were played, could anything still exposed follow it? Asked of the
-          // brain, and with the card's own second value when the slot is a double - a
-          // two-valued waste chains twice as easily, and missing that would let a burst
-          // through the one filter meant to stop it.
-          const w2=isDblSlot(n)?secondOf(x):0;
-          for(const z of ex)if(canMatch(z,x,LV.rank,w2))return false;
-          return true;});
-        // Wild slots are skipped above on purpose: nothing chosen here can stop a wild from
-        // answering, and counting them would empty the filter on every call.
-        if(tight.length)inert=tight;
-      }
+      const ex=[];
+      for(let z=0;z<N;z++)if(!cl.has(z)&&expo(z)&&onScreen(z)&&!isWildSlot(z))ex.push(z);
+      // Could anything still exposed answer this card, or be answered BY it? cyc is
+      // symmetric, so for ordinary ranks that is one question. Asked of the brain, and with
+      // the card's own second value when the slot is a double - a two-valued waste chains
+      // twice as easily, and missing that would let a burst through the one filter meant to
+      // stop it. Wild slots are skipped on purpose: nothing chosen here can stop a wild from
+      // answering, and counting them would empty the filter on every call.
+      const tight=inert.filter(function(x){
+        const w2=isDblSlot(n)?secondOf(x):0;
+        for(const z of ex)if(canMatch(z,x,LV.rank,w2))return false;
+        return true;});
+      if(tight.length)inert=tight;
       r=dPick(inert.length?inert:dFree());}
     if(r===undefined){r=ALL[Math.floor(rnd()*ALL.length)];  // never leave a card blank
       LV.pool[r]=(LV.pool[r]||0)+1;}                          // and never go negative

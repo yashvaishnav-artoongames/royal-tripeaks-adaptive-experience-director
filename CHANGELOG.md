@@ -1,5 +1,68 @@
 # Changelog
 
+## 1.6.0 — 2026-08-26
+
+The live director stops leaking clears it never planned. Live target accuracy on the default
+policy goes from 89.5% to **100%**.
+
+### Fixed
+- **`dReveal()` — inert now means inert.** The test for "this card cannot be played" compared
+  a candidate rank against exactly two ranks: the waste, and the head of the chain being laid.
+  It never asked the board. So a card bound inert could sit one step from some **other**
+  exposed card’s rank, and the moment the player played that card its rank became the waste
+  and the inert card was playable — a clear the plan never counted. `dDraw()`’s dead branch
+  never had this hole; it has always asked `canMatch` about every exposed slot. The asymmetry
+  between the two was the bug.
+
+  | policy | before | after | miss direction after |
+  |---|---|---|---|
+  | random (50 runs × 11 builds) | 492/550 · 89.5% | **550/550 · 100%** | 0 easier, 0 harder |
+  | greedy (20 × 11) | 197/220 · 89.5% | **216/220 · 98.2%** | 4 easier, 0 harder |
+  | cautious | 196/220 · 89.1% | **219/220 · 99.5%** | 1 easier, 0 harder |
+  | drawhappy | 181/220 · 82.3% | 193/220 · 87.7% | 2 easier, 20 harder |
+  | messy | 193/220 · 87.7% | 193/220 · 87.7% | unchanged |
+
+  Verified builds are untouched at **950/950 exact target** — they do not use `dReveal`.
+
+  Before the fix every miss on `random` was **easier** than intended and none harder: 57 to 0.
+  That asymmetry is the signature of leaked clears rather than a mis-sized plan, and it is what
+  pointed at this predicate.
+
+  The test itself is not new. It shipped as STARVE THE WILD, gated on a losing target with a
+  wild still on the board, where it was worth 13 runs. **The gate was the mistake, not the
+  test.** A wild makes the leak worse — WILD on the waste answers everything — but does not
+  cause it, and a win target leaks the same way. The old comment warned that a tighter filter
+  could over-strand a win past the band; measured, it does not.
+
+### Not fixed, and why
+- **drawhappy and messy stay at 87.7%.** The bot scores a win as `deckLeft()` and `drawhappy`
+  draws with a play available 15% of the time, so **the measured margin is exactly the quantity
+  the bot destroys** — and no lever can hand a deck card back. Its worst builds are *verified*
+  ones (L111 Comfortable Win 5/20 intent, L6 2/20), which is ISSUE-015, not live steering.
+
+  Five director-side compensations were built and measured, all discounting the draw budget by
+  the player’s observed waste rate (`miss`/`di`). Every one cost more than it bought; the best,
+  a waste-aware survival guard, took drawhappy to 197/220 and messy **down** to 186/220. None
+  shipped. The measurements and the wrong prediction are recorded in
+  `docs/specs/predictive_planning_plan.md` §3.
+
+### Verification
+      plustest    13 / 13
+      streaktest  23 / 26     pre-existing, see below
+      colortest   11 / 11
+      meter        9 / 9
+      truth       18 / 18
+      reg.js      VERIFIED 950/950 exact · LIVE 550/550 in target range
+
+  Two documentation conflicts found while running this gate, both pre-existing and neither
+  caused by this change:
+
+  - **`CLAUDE.md` names five suites in `tools/`, and that directory was deleted in `576cb48`.**
+    They were restored from git history for this run, as `tools/README.md` described, and
+    removed again afterwards.
+  - **`streaktest` is 23/26, not the documented 26/26.** Three failures — win-target retarget,
+    and two drawn-wild cases — present identically at `f95c648` and after this change.
+
 ## 1.5.0 — 2026-08-25
 
 The live director can finally see the obstacles it is planning around, and plus levels stop
