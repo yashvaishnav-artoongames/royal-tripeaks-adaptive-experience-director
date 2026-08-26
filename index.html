@@ -1830,24 +1830,41 @@ function dDraw(){
 
 function popc(x){x=x-((x>>1)&0x55555555);x=(x&0x33333333)+((x>>2)&0x33333333);
   x=(x+(x>>4))&0x0f0f0f0f;return (x*0x01010101)>>24&0x3f;}
+// Why did exh() decline? It returns null for five quite different reasons and the build's
+// FAIL ledger records the same word - 'verify' - for every one of them. So a level that ran
+// out of search budget and a level that genuinely cannot hold its target on every line look
+// identical from outside, which is exactly the question you need answered before deciding
+// whether to raise the cap. Counting is free; guessing is not.
+//
+//   cap       the 250k state budget ran out         - a BUDGET problem, more cap may help
+//   radix     a field outgrew its slot in the key   - STRUCTURAL, the key needs widening
+//   winmiss   a cleared board landed off the target - STRUCTURAL, this deal cannot hold it
+//   losemiss  a dead board stranded the wrong count - STRUCTURAL, same
+//   denial /  the search succeeded but the deal did
+//   payout /  not meet a quality floor              - the deal proves, it is just not wanted
+//   fork
+//
+// bad short-circuits every later call, so exactly one of the first four counts per exh().
+let EXHWHY={cap:0,radix:0,winmiss:0,losemiss:0,denial:0,payout:0,fork:0,ok:0};
+function exhWhyReset(){EXHWHY={cap:0,radix:0,winmiss:0,losemiss:0,denial:0,payout:0,fork:0,ok:0};}
 function exh(rank,deck,seed,win,tv,needPay){
   const memo=new Map();let cap=0,states=0,bad=false,fk=0;
   const DJR=deck.length+2;   // draw index: 0 .. deck.length, from THIS deck
   const WR=WASTE_RADIX;      // waste rank: 1..13, and WILD once it is a card
   function f(mlo,mhi,w,dj,mt){
     if(bad)return null;
-    if(++cap>250000){bad=true;return null;}
+    if(++cap>250000){bad=true;EXHWHY.cap++;return null;}
     // a packed key is only sound while every field is inside its radix. If that ever
     // stops holding, refuse to verify rather than return a confident wrong proof -
     // refusing falls through to re-deal, then live, which are both safe.
-    if(dj>=DJR||w>=WR||mt>=PIPS){bad=true;return null;}
+    if(dj>=DJR||w>=WR||mt>=PIPS){bad=true;EXHWHY.radix++;return null;}
     let inner=memo.get(mhi);
     if(inner===undefined){inner=new Map();memo.set(mhi,inner);}
     const key=((mlo*WR+w)*DJR+dj)*PIPS+mt;
     const hv=inner.get(key);if(hv!==undefined)return hv;
     let res;
     if(mlo===FLO&&mhi===FHI){
-      if(!win||deck.length-dj!==tv){bad=true;return null;}
+      if(!win||deck.length-dj!==tv){bad=true;EXHWHY.winmiss++;return null;}
       res={d:0,p:0};
     }else{
       const lg=[];
@@ -1872,14 +1889,15 @@ function exh(rank,deck,seed,win,tv,needPay){
         res={d:r.d+(mt===PIPS-1?1:0),p:r.p};
       }else{
         const c=popc(mlo)+popc(mhi);
-        if(win||N-c!==tv){bad=true;return null;}
+        if(win||N-c!==tv){bad=true;EXHWHY.losemiss++;return null;}
         res={d:0,p:0};}}
     inner.set(key,res);states++;return res;}
   const r=f(0,0,seed,0,0);
   if(bad||!r)return null;
-  if(deck.length>0&&r.d<1)return null;
-  if(needPay&&r.p<1)return null;
-  if(!win&&fk<1)return null;
+  if(deck.length>0&&r.d<1){EXHWHY.denial++;return null;}
+  if(needPay&&r.p<1){EXHWHY.payout++;return null;}
+  if(!win&&fk<1){EXHWHY.fork++;return null;}
+  EXHWHY.ok++;
   return {minDen:r.d,minPay:r.p,states:states,forks:fk};
 }
 function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){

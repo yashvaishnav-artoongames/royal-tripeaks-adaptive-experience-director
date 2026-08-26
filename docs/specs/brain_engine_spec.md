@@ -225,11 +225,49 @@ land on the exact target. Widening the branching multiplies the ways a line can 
 the prover the rule was necessary; it was not sufficient, and the difference between those two
 is the lesson of this stage.
 
-**Open, and answerable with one measurement:** `exh()` returns null both when a line misses
-the target and when it hits the 250k state cap and sets `bad`. Those are different diagnoses —
-one is a budget problem and the other is structural — and the failure ledger cannot tell them
-apart. Counting them separately is the next thing to do, before deciding whether L21 needs a
-bigger budget or a different guarantee. **Do not raise the cap before knowing which it is.**
+#### The measurement — TAKEN, and it settles the question
+
+`exh()` returned null for five different reasons and the failure ledger called all of them
+`verify`. `EXHWHY` now counts them apart, and
+`docs/measurements/exh-decline-reasons.js` reports them per level:
+
+```
+level  obstacles  ver     cap  radix  winmiss  losemiss  floors   proved
+L21    wild       0/5       0      0    38546     70405       2        0
+L6     none       5/5       0      0     3101      6830      18        9
+L12/L111/L7/L41  (gate refused, prover never ran)
+
+Totals   cap 0   structural 118882   floors 20   proved 9
+```
+
+**Not one candidate deal, on any level, ever ran out of search budget.** Every refusal is
+structural: a deal that cannot hold its target on *every* legal line. **Raising the 250k cap
+would change nothing**, and that is now measured rather than assumed.
+
+The comparison against the control is the sharp part. L6 took ~9,900 refusals to find 9
+proofs — roughly one in eleven hundred. L21 took ~109,000 refusals, **eleven times as many
+attempts, and found none at all.**
+
+#### What that means for the plan
+
+The binding constraint is not the prover's knowledge, and it is not its budget. It is that
+`exh()`'s guarantee — *every legal line lands on the exact number* — gets harder to satisfy in
+proportion to how much choice the obstacle hands the player. A wild is the extreme case: it is
+legal against anything, so it multiplies the lines that must all agree.
+
+So **teaching the prover an obstacle and getting coverage back are two different projects.**
+Stage 1 finished the first for wild and demonstrated that the second does not follow.
+
+Two consequences worth deciding before stages 2–4:
+
+1. **Stage 2 (double) faces a milder version of the same force.** A double answers two ranks
+   where a wild answers thirteen, so the branching grows far less — but it grows. The
+   prediction that it unlocks L111 should be treated as untested, exactly like Stage 1's was.
+2. **A wild level may need a different guarantee, not a better prover.** If every line cannot
+   be made to land on one number, the honest options are to prove a *band* rather than a
+   number, or to accept live steering for wild levels permanently and say so. That is a
+   design decision about what "verified" promises, and it is above this spec's pay grade —
+   it belongs in `DECISIONS.md` once someone chooses.
 
 Predictions for stages 2–4 stand unmeasured, and this one is a reminder that they are
 predictions. L41 stays live throughout, by design.
@@ -268,9 +306,11 @@ poisons the memo key silently instead of throwing.
 quietly aliased with a real rank. Deck wilds reach the prover through streak rewards on a
 verified level, so this was live rather than theoretical. `wasteAfterDraw()` fixes it.
 
-**Result:** see §3.4. The prover now runs on L21 and cannot prove it. `OBS.wild.taught` is
-`true` because the rule is genuinely modelled — the flag tracks whether the prover understands
-the obstacle, not whether any particular level happens to prove.
+**Result:** see §3.4. The prover now runs on L21 and cannot prove it, and the follow-up
+measurement shows why: zero budget exhaustion, ~109,000 structurally impossible deals.
+`OBS.wild.taught` is `true` because the rule is genuinely modelled — the flag tracks whether
+the prover understands the obstacle, not whether any particular level happens to prove. Those
+turn out to be very different things, which is the most useful thing this stage produced.
 
 **Verified no regression:** `prover-equivalence.js` against a stage-0 baseline, 5 captured
 inputs, 35 comparisons, 35 identical, 0 differing. The control level is untouched.
