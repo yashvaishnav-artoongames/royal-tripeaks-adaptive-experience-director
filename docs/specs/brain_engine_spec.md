@@ -183,9 +183,13 @@ Key is `((mlo*WR + w)*DJR + dj)*PIPS + mt`, `WR=15`, `PIPS=5`, `DJR = deck+2`.
 
 Two findings worth keeping:
 
-**Plus is cheaper than it looks.** Which tiles have fired is fully determined by the mask,
-so the deck's length is too. No new key field — only a wider `DJR` and a mask-derived length
-in the `tv` check.
+**Plus — this claim was WRONG, and Stage 4 found it.** The original text said: *which tiles
+have fired is fully determined by the mask, so the deck's length is too. No new key field.*
+The first half holds. The second does not. `plusFire()` splices grants at **`di` — the current
+draw position** (`dk.splice(di,0,…)`), so the deck's *length* is a function of the mask but its
+*order* is a function of the path: two lines reaching the same mask, having fired the same
+tiles at different draw indices, hold different decks. Modelling plus exactly needs the
+**pending-grant queue** in the state, which is very much a new key field. See §4.4.
 
 **Up/down cannot be keyed on a move counter.** A tile is frozen until *revealed*, so its live
 rank is `start + step × (moves since ITS reveal)`. Two lines can reach the same mask having
@@ -396,18 +400,68 @@ shape, not a limit of the prover, and the counters are what make the difference 
 **Verified no regression:** `prover-equivalence.js` against a stage-2 baseline — 70
 comparisons now that L111 is verified too, 70 identical, 0 differing.
 
-### Stage 4 — teach plus · unlocks L12, closes ISSUE-011 properly
+### Stage 4 — teach plus · DESIGNED AND PRICED, deliberately not shipped
 
-Pre-commit the granted ranks at build time (they are chosen by `supplyPick()` at runtime
-today, which is exactly why no deck can be pre-committed). Then:
+Stage 4 was started, and the first thing it produced was a correction to this spec. The
+original plan above rested on *"no new key field"*, and that is false — see §3.3. Below is
+what it actually costs, measured, and why the gate is still closed.
 
-- `plusClose(mask)` — close the cleared set over any tile whose blockers are all cleared.
-  `plusSweep()`'s rule on a bitmask, idempotent.
-- `DJR` widens to `DECKN + PLUSTOTAL + 2`.
-- The `tv` check reads a deck length derived from the mask, not a constant.
+#### It is affordable — measured, not estimated
 
-**Verify:** L12 across all five outcomes. Expect coverage below the pre-revert 1.3.0 figures;
-the difference is proofs that were never real.
+`docs/measurements/state-counts.js` reports what the *winning* proof on each verified build
+actually explores:
+
+```
+L111  13 cards, deck 7    19–27 states
+L7    11 cards, deck 10   28–32 states
+L6    21 cards, deck 10   52–264 states     <- worst of any verified build
+```
+
+**264 states against a 250,000 cap.** The headroom is roughly a thousandfold, which reframes
+the whole exercise: the cap was never the constraint, and `cap 0` in every decline measurement
+so far was not luck.
+
+Pricing L12's queue against that: three tiles at Value 3, so pending-count combinations
+`4³ = 64`, times up to `3! = 6` orderings of simultaneously-pending blocks — an **upper bound
+of ×384**, giving `264 × 384 ≈ 101,000`. **It fits**, and the true figure is far lower, because
+a tile is only pending between the play that uncovers it and the next draw. A tighter encoding
+exists too: cards are drawn from the front, so every block behind the first is *full*, and the
+state reduces to (ordered list of pending tiles, remaining count of the front block) — about
+×48 for L12.
+
+#### What it actually requires — four parts, not three
+
+1. **`plusClose(mlo,mhi)`** — close the mask over any tile whose blockers are all cleared,
+   `plusSweep()`'s rule on a bitmask, idempotent. Uncontroversial.
+2. **Pre-committed grants.** `supplyPick()` chooses granted ranks at *runtime*, so the builder
+   must choose them instead and store them per tile, and `plusFire()` must use the stored ones
+   on a verified level. **This changes live gameplay, not just the prover** — the only part of
+   this whole plan that does.
+3. **The pending-grant queue** in both provers, with the key widened to carry it.
+4. **Draws served from the queue first**, mirroring `splice(di,0,…)`: last emitted, first drawn.
+
+#### Why the gate is still closed
+
+A wrong plus model does not fail safe. It produces **proofs about a game the player is not
+playing** — which is ISSUE-011 exactly, the defect this entire engine exists to remove. Stages
+1–3 could each be checked line by line against their live counterpart (`canMatch` against
+`slotTakes`, the pair branch against `lkCollect`). Part 2 has no live counterpart to check
+against, because it *creates* new runtime behaviour.
+
+So: designed, priced, and stopped short of shipping a model that cannot be verified before it
+is trusted. **The judgement call is whose to make, not mine to assume.** Two ways forward:
+
+- **Ship it and verify in the browser.** The measurements will say whether L12 proves;
+  `prover-equivalence.js` will say whether L6/L111/L7 regressed. Neither can confirm the plus
+  model is *right* — only a play-through can.
+- **Leave plus live, permanently and on purpose.** L12 is steered honestly today. That costs
+  five verified builds and closes ISSUE-011 by gating rather than by proving, which is a
+  legitimate answer and already the accepted one for up/down.
+
+One tempting shortcut, rejected: if every grant on a level shared a single rank, order would
+stop mattering and the state would collapse to a count (×10, trivial). But nine identical
+cards from three tiles is a visibly worse game, and buying prover coverage with player
+experience is the wrong trade in a project whose whole premise is the opposite.
 
 ### Stage 5 — up & down: do not attempt
 
