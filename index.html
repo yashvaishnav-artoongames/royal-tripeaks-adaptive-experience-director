@@ -1291,11 +1291,27 @@ const PLANB={
   // failures alike) and sits near 31% an attempt, so extra looks at genuinely DIFFERENT
   // boards are worth more than extra looks at the same one.
   //
-  // 0.60 is inside the range where proofs already land (median 44%, max 63%). 0.90 is past
-  // it and is the speculative one - cheap, because almost nothing is undecided by then,
-  // and it may guarantee too little to matter. Both are recorded separately so the probe
-  // can say whether either earned its place.
-  promoMiles:[0.60,0.90]
+  // 0.60 sits inside the range where proofs already land unaided (median 44%, max 63%).
+  //
+  // The other two were arrived at by measuring three configurations on the same seeds:
+  //
+  //   [0.60, 0.90]        baseline 35 + 15 + 7   =  57 promotions
+  //   [0.60, 0.80]        baseline 35 + 15 + 2   =  52
+  //   [0.60, 0.80, 0.90]  baseline 35 + 15 + 2 + 5 = 57
+  //
+  // 0.80 ALONE loses five. It converts at 29%, no better than the cost gate, because at 80%
+  // cleared the board is still large enough that the proof is hard - proofs at 0.90 come from
+  // as few as ONE undecided card, while at 0.80 most attempts still face thirteen or
+  // fourteen.
+  //
+  // With all three, 0.90 falls from seven proofs to five: the two that 0.80 lands are levels
+  // 0.90 would have caught anyway, just later. So 0.80 finds no NEW conversions - it finds the
+  // same ones sooner, at 81% cleared instead of 94%, which is roughly three times as much
+  // remaining level guaranteed. A proof is only worth what it still covers, so that is worth
+  // seven extra attempts of which five fail.
+  //
+  // 0.90 stays as the backstop. It is nearly free by then and it converts every time.
+  promoMiles:[0.60,0.80,0.90]
 };
 function srand(s){RSEED=(s>>>0)||1;}
 function rnd(){RSEED=(RSEED+0x6D2B79F5)>>>0;let t=RSEED;
