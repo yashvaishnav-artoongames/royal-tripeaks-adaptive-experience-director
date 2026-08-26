@@ -1897,7 +1897,35 @@ function dRunLen(){
   const goal=dGoal(), C=(LV.deckLen-di+L.grants)-(LV.tgt.win?LV.tv:0);
   if(goal<=0)return 0;            // enough cleared already: stall from here
   if(C<=0)return goal;            // no draws left to burn: clear the rest in one sweep
-  return Math.max(1,Math.min(16,Math.ceil(goal/(C+1))));
+  // THE RATE IS FRACTIONAL AND THE ANSWER HAS TO BE AN INTEGER, so how it rounds matters.
+  //
+  // This was Math.max(1,Math.ceil(ideal)) - TWO round-ups stacked, both biased the same way.
+  // On L7 Comfortable Lose the ideal chain rate is 3/9 = 0.33 and the old form could not
+  // express anything below 1, so it chained one card on every reveal: four matches where the
+  // plan wanted one. Measured, the director planned 3 player matches and got 4.2.
+  //
+  // That is very likely the source of the global bias too. Across 550 runs every single miss
+  // was EASIER than intended and none was harder, which is exactly the signature of a rate
+  // that can only ever round up.
+  //
+  // Stochastic rounding instead: chain floor(ideal), plus one more with probability equal to
+  // the fraction. Expected value is the ideal exactly, so the bias goes to zero instead of
+  // always upward.
+  const ideal=goal/(C+1);
+  // Losing targets get the unbiased form. On a WIN the floor of 1 stays: under-chaining there
+  // risks losing a level the director promised to win, and that is a worse failure than
+  // landing a draw or two off the range.
+  //
+  // Carried as an error term rather than rolled for. Spending a rnd() here would shift the
+  // level random stream, and then no seed-matched A/B of this change is comparable to the
+  // build before it - which is exactly the trap the first attempt walked into. An accumulator
+  // gives the same expected rate, exactly, and leaves the stream alone.
+  if(!LV.tgt.win){
+    RUNACC+=ideal;
+    const n=Math.floor(RUNACC);RUNACC-=n;
+    return Math.min(16,n);
+  }
+  return Math.max(1,Math.min(16,Math.ceil(ideal)));
 }
 // bind cards that just turned face up
 function dChildren(i){let c=0;for(let y=0;y<N;y++)if((DEP[y]||[]).indexOf(i)>=0)c++;return c;}
@@ -2929,6 +2957,7 @@ let PLUSTOTAL=0;             // cards every plus tile on this level will hand ou
 let PLUSTILES=0;             // how many tiles, i.e. free clears the board gives away
 let PTILE=[], PORD={}, PMAXV=0, PGQR=1;   // prover-side plus bookkeeping, see useLevel
 let MATCHN=0;                // board cards the player actually has to match
+let RUNACC=0;                // fractional carry for dRunLen, see there
 let LKTILES=0;               // lock and key tiles on this level, keys plus locks
 let LKDONE=[];               // [key,lock] pairs collected this attempt, in order
 // Run statistics for the KPI panel. CHAINMAX is the longest run of matches between draws -
@@ -4422,7 +4451,7 @@ function reset(){if(!LV)return;
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];LKDONE=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
-  CHAINMAX=0;DENIALS=0;DENKEY=-1;
+  CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
   LV.liveDeck=false;
   scrollInit();
