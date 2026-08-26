@@ -2004,6 +2004,47 @@ function dReveal(newly){
 function rankNext(i){
   return (UDN&&isUDSlot(i)&&expo(i)&&onScreen(i))?udWrap(LV.rank[i]+UPDN[i]):LV.rank[i];}
 function boardNext(){const r={};for(let i=0;i<N;i++)r[i]=rankNext(i);return r;}
+// ==== NEAR MISS AND ARRIVAL ===================================================
+// An up/down tile is the only obstacle whose FUTURE is legible to the player - the reel shows
+// the value it is leaving, what it is worth now, and where it goes next. That makes it the one
+// place a director can author anticipation instead of merely surviving an obstacle.
+//
+// The director already throws draws away: measured at ~12.3 per run on L21 and 13 on L41, all
+// of them arbitrary ranks that matched nothing. A wasted draw is wasted either way, so making
+// it MEAN something is free.
+//
+// Timing matters and is easy to get wrong: dDraw runs BEFORE the tick. So LV.rank[i] is the
+// value the tile is about to leave, and the player will face LV.rank[i]+step.
+//
+// TEASE - matched the value the tile is leaving, and matches neither of the next two. A card
+// the player can see they just missed, with the departing value sitting right there as the
+// reel's top ghost. Excluding the next two is what keeps it plan-neutral: it is dead now and
+// walks further out of reach, so it can never hand back a clear the plan did not budget.
+// Without that second exclusion a tease on an up tile at 7 could be an 8, which is dead now
+// and live next move - a gift dressed as a taunt.
+function udTease(){
+  const out=[];
+  if(!UDN)return out;
+  for(const key in UPDN){const i=+key;
+    if(cl.has(i)||!expo(i)||!onScreen(i))continue;
+    const v=LV.rank[i];if(v===undefined)continue;
+    const s=UPDN[i],v1=udWrap(v+s),v2=udWrap(v1+s);
+    for(const x of nb(v))
+      if(!cyc(v1,x)&&!cyc(v2,x)&&LV.pool[x]>0&&out.indexOf(x)<0)out.push(x);}
+  return out;}
+// ARRIVAL - built, measured, removed. A card dead now and live NEXT move, because the tile
+// walks onto it. It fired ZERO times in 150 runs, and the reason is worth keeping: its
+// trigger was "the director wanted to hand over a playable card and had none", and that
+// moment never occurs. The live branch of dDraw is never short of a candidate.
+//
+// So arrival cannot be a fallback. It would have to be a DELIBERATE choice - spend this
+// draw on anticipation rather than on a move available right now - and that is a pacing
+// decision the director has no way to make yet. It needs the layer above this one, not a
+// better trigger down here. Rebuild it when that exists; the rank set is nb(v+2*step)
+// minus nb(v+step).
+// What the last draw was FOR, so the round note can say it out loud. A device the player
+// cannot perceive is not a device.
+let DRAWTAG=null;
 function dDraw(){
   if(LV.wildAt&&LV.wildAt.length&&LV.wildAt.indexOf(di)>=0){
     LV.wildAt.splice(LV.wildAt.indexOf(di),1);
@@ -2027,7 +2068,10 @@ function dDraw(){
     // was written here and removed again - it never executed, and the reasoning behind it
     // (that wild tiles starve the dead branch) is simply not what happens.
     const dead=dFree().filter(x=>!exposedNow.some(i=>canMatch(i,x,RNEXT,0)));
-    r=dPick(dead.length?dead:dFree());
+    // Among cards that are dead either way, prefer the one the player can see they missed.
+    const tz=udTease().filter(function(x){return dead.indexOf(x)>=0;});
+    if(tz.length){DRAWTAG='tease';r=dPick(tz);}
+    else r=dPick(dead.length?dead:dFree());
   }else{
     const cands=[];
     const add=function(x){if(LV.pool[x]>0&&cands.indexOf(x)<0)cands.push(x);};
@@ -2779,8 +2823,17 @@ function draw(){snap();wild=false;
     dReveal(nw);}
   const lg=legals();
   log.push({t:'d',s:d[0],dead:lg.length===0});act='Draw '+d[0];
-  beat=lg.length===0?'Dry':'Draw';
-  note=lg.length===0?('Dead draw \u2014 nothing on the board answers a '+RN[d[1]]+'.')
+  // A device the player cannot perceive is not a device, so say which kind of dead draw
+  // this was. DRAWTAG is cleared here rather than inside dDraw, so a card drawn from a
+  // pre-built deck - a verified level, which never calls dDraw - cannot inherit a tag left
+  // behind by an earlier live round.
+  const tag=DRAWTAG;DRAWTAG=null;
+  beat=lg.length===0?(tag==='tease'?'Near miss':'Dry'):'Draw';
+  note=lg.length===0
+    ?(tag==='tease'
+      ?('Near miss \u2014 a '+RN[d[1]]+' would have answered the up/down card one move ago. '+
+        'Its top ghost is the value it just left.')
+      :('Dead draw \u2014 nothing on the board answers a '+RN[d[1]]+'.'))
     :('Opens '+lg.length+' move'+(lg.length>1?'s':'')+'.');render();}
 function miss1(){if(!legals().length){draw();return;}
   snap();wild=false;
