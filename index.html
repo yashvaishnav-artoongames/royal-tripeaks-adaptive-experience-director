@@ -1502,11 +1502,17 @@ function buildFixed(li,ti,seed){
 //   drawhappy  sometimes draw with a play available - ISSUE-015's exact path, and the one
 //              the verified guarantee is known NOT to survive. Uses miss1(), which is what
 //              the Draw anyway button does, so it is scored as a mistake like a player's.
-//   wildy      sometimes spend a wild. Wilds are unlimited here (canWild has no bank), so a
-//              policy that reached for one every turn would win everything and measure
-//              nothing - kept deliberately rare.
-//   messy      a bit of all three, including undo, so every player action gets exercised.
-const BOTPOL=['random','greedy','cautious','drawhappy','wildy','messy'];
+//   messy      drawhappy plus undo, so the undo path gets exercised too.
+//
+// NO POLICY SPENDS COINS, and that is a modelling decision rather than an omission. Two of
+// the player's actions cost real money: USE WILD, and taking extra cards after a loss. Both
+// are the player choosing to sink coins, and neither is something the director may lean on -
+// a target that only lands because the player paid for it is not a target the director hit.
+// The rescue was already outside the bot (ecStart is reached only from the ad and coin
+// buttons); useWild was not, so a `wildy` policy has been removed rather than kept and
+// discounted. If the outcome cannot be produced by free play, it has not been produced.
+const BOTPOL=['random','greedy','cautious','drawhappy','messy'];
+const BOTPAID=['useWild'];   // actions a policy may never take, by design
 function botPlay(pseed,policy,rate){
   const POL=policy||'random';
   const P=(rate===undefined)?0.15:rate;
@@ -1518,7 +1524,6 @@ function botPlay(pseed,policy,rate){
     const lg=legals();
     const leftNow=N-cl.size;
     if(leftNow===0){res={win:true,v:deckLeft()};break;}
-    if((POL==='wildy'||POL==='messy')&&!wild&&leftNow>0&&rnd()<P*0.35){useWild();continue;}
     if(POL==='messy'&&stack.length&&rnd()<P*0.15){back();continue;}
     // A ready pair is a real move and the bot had no way to make it, so every lock/key level
     // was unplayable to it - it drew until the deck died and reported a loss the proof never
@@ -1864,6 +1869,23 @@ function readBoard(){
 // Cards the PLAYER has to match from here. Anything that leaves the board without a match
 // is not the player's work, and counting it made the director demand runs the board never
 // needed - three too many on L12, before lock and key existed to add more.
+// Cards the PLAYER has to match from here.
+//
+// A WILD TILE leaks clears the director cannot prevent, and this is where two attempts to
+// account for that were made and removed. Measured on L21 Comfortable Lose: six of twenty
+// runs miss and EVERY miss is below the band - it over-clears, never under-clears - with both
+// wild tiles played on nearly every run, and one run ending on 1 of a 5-8 band.
+//
+// Subtracting the wild count here, so the director starts feeding dead cards sooner, changed
+// the live band figure by exactly nothing: 193/220 before and after. The reason is that
+// wantDead was already firing on 229 of 247 draws - it was trying to go dead 93% of the time
+// already, so making it try earlier cannot move a saturated number.
+//
+// The mechanism is not WHEN the director goes dead. It is that a dead draw does not stop this
+// player at all: playing a wild tile puts WILD on the waste, canMatch answers true for
+// everything, the next card is unconditional, and that card can open a chain of its own. The
+// director chooses ranks; a wild makes rank irrelevant for two plays. That lever cannot reach
+// this, and pretending otherwise with code that measures neutral is worse than saying so.
 function dGoal(){
   const L=readBoard();
   return (N-cl.size)-L.free-(LV.tgt.win?0:LV.tv);
@@ -1940,6 +1962,10 @@ function dDraw(){
   const RNEXT=boardNext();
   let r;
   if(wantDead){
+    // Measured on L21 lose targets: wantDead fired 435 times and a clean dead card was
+    // available on every one of them, with a wild tile exposed on none. A cleverer fallback
+    // was written here and removed again - it never executed, and the reasoning behind it
+    // (that wild tiles starve the dead branch) is simply not what happens.
     const dead=dFree().filter(x=>!exposedNow.some(i=>canMatch(i,x,RNEXT,0)));
     r=dPick(dead.length?dead:dFree());
   }else{
