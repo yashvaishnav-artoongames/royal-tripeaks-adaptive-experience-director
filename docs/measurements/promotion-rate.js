@@ -43,7 +43,7 @@ const S=ctx(src);
 S.RUNS=RUNS;S.ARGPOL=ARGPOL;
 
 vm.runInContext(`
-ROWS=[];TRIES=[];PMAX=PLANB.promoMax;PTRIES=PLANB.promoTries;
+ROWS=[];TRIES=[];PMAX=PLANB.promoMax;PTRIES=PLANB.promoTries;PMILES=PLANB.promoMiles;
 for(let li=0;li<LEVELS.length;li++){
  for(let ti=0;ti<OUT.length;ti++){
   let lv=null;
@@ -66,7 +66,7 @@ for(let li=0;li<LEVELS.length;li++){
     // COST vs VALUE, one entry per attempt. u is what was still undecided; cl and dr are how
     // far through the level it was. The gate reads u only.
     for(const t of PLANC.tries)TRIES.push({lvl:LEVELS[li].short,out:OUT[ti].n,
-      u:t.u,cl:t.cl,dr:t.dr,ok:t.ok});
+      u:t.u,cl:t.cl,dr:t.dr,m:(t.m===undefined?-1:t.m),ok:t.ok});
   }
   // Refusal reasons, read from a FRESH round rather than an ended one: at the end of a run
   // the board is clear or dead and every predicate refuses for uninteresting reasons.
@@ -151,6 +151,39 @@ if(okT.length){
   }
 }else if(T.length){
   console.log("  Nothing proved, so there is no value window to measure yet.");
+}
+
+// ---- did the milestone triggers earn their place? ---------------------------
+// The baseline three fire within a move or two of each other. These fire at board progress,
+// so they see a different board. A milestone that converts no better than baseline is one
+// that added cost and nothing else.
+const MN=(S.PMILES||[0.60,0.90]).map(function(x){return Math.round(x*100)+"% cleared";});
+const groups=[{k:-1,n:"baseline (cost gate)"}].concat(
+  MN.map(function(nm,i){return {k:i,n:"milestone "+nm};}));
+console.log("");
+console.log("  BY TRIGGER");
+console.log("  "+"-".repeat(76));
+console.log("  trigger                    attempts   proved   rate   board cleared (median)");
+for(const g of groups){
+  const a=T.filter(function(t){return t.m===g.k;});
+  const w=a.filter(function(t){return t.ok;});
+  const cls=w.map(function(t){return t.cl;}).sort(function(x,y){return x-y;});
+  const med=cls.length?(Math.round(cls[Math.floor(cls.length/2)]*100)+"%"):"-";
+  console.log("  "+g.n.padEnd(27)+String(a.length).padStart(8)+String(w.length).padStart(9)+
+    (a.length?(Math.round(100*w.length/a.length)+"%").padStart(7):"      -")+"   "+med);
+}
+console.log("  "+"-".repeat(76));
+{
+  const base=T.filter(function(t){return t.m===-1;});
+  const mile=T.filter(function(t){return t.m>=0;});
+  const br=base.length?(base.filter(function(t){return t.ok;}).length/base.length):0;
+  const mr=mile.length?(mile.filter(function(t){return t.ok;}).length/mile.length):0;
+  if(!mile.length)console.log("  >> No milestone attempt ever fired. The cost gate refuses at",
+    "those points, or the",NL+"     baseline three were never exhausted.");
+  else if(mr>=br)console.log("  >> Milestone attempts convert at "+Math.round(mr*100)+
+    "% against baseline "+Math.round(br*100)+"% - they earn their place.");
+  else console.log("  >> Milestone attempts convert at "+Math.round(mr*100)+
+    "% against baseline "+Math.round(br*100)+"% - they cost more than they return.");
 }
 console.log('');
 console.log('  A refusal is not a failure. wild and up/down are structurally unprovable, so');

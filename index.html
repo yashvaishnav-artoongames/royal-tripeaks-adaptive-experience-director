@@ -1246,6 +1246,8 @@ let RSEED=(Date.now()^0x9e3779b9)>>>0;
 let HITW=0;
 // Promotion attempts made on THIS round. Snapshotted, because undo must not re-run one.
 let PROMOS=0;
+// Bitmask of progress milestones already spent this round, so each fires at most once.
+let PROMOMILE=0;
 // ==== PLANNING TELEMETRY (proposal 22) ========================================
 // Every one of these was already being computed and thrown away. Counting them is what
 // tells us whether mid-level promotion is worth having BEFORE tuning it.
@@ -1276,8 +1278,24 @@ const PLANB={
   promoTries:3,      // attempts per round. reDirect runs on EVERY action, so without this
                      // the gate would re-fire on every tap once it opened
   promoDeals:32,     // deals per attempt, bounded in practice by deepWork above
-  promoMax:14        // unknowns ceiling. The proof is exponential in what is still
+  promoMax:14,       // unknowns ceiling. The proof is exponential in what is still
                      // undecided, so attempting early only burns the cap and fails
+  // EXTRA attempts at board-progress milestones, on top of promoTries.
+  //
+  // The three baseline attempts are not three independent shots. Unknowns fall
+  // monotonically, so the ceiling above opens ONCE and the attempts fire on consecutive
+  // actions - measured on L21, every promotion lands between di 8 and 12. That is three
+  // looks at nearly the same board.
+  //
+  // Success is close to independent of how much is undecided (12/14/14 for proofs AND
+  // failures alike) and sits near 31% an attempt, so extra looks at genuinely DIFFERENT
+  // boards are worth more than extra looks at the same one.
+  //
+  // 0.60 is inside the range where proofs already land (median 44%, max 63%). 0.90 is past
+  // it and is the speculative one - cheap, because almost nothing is undecided by then,
+  // and it may guarantee too little to matter. Both are recorded separately so the probe
+  // can say whether either earned its place.
+  promoMiles:[0.60,0.90]
 };
 function srand(s){RSEED=(s>>>0)||1;}
 function rnd(){RSEED=(RSEED+0x6D2B79F5)>>>0;let t=RSEED;
@@ -2938,7 +2956,7 @@ function finishBuild(){
 function ic(c,t,b){return '<div class="insight-card"><div class="ic-title">'+
   '<span class="ic-dot" style="background:'+c+'"></span>'+t+'</div><div class="ic-body">'+b+'</div></div>';}
 function snap(){stack.push({c:Array.from(cl),wl:wl,wr:wr,di:di,k:k,
-  log:log.map(o=>({t:o.t,s:o.s,dead:o.dead})),beat:beat,act:act,note:note,rp:replans,ld:!!(LV&&LV.liveDeck),lv:!!(LV&&LV.live),lpr:!!(LV&&LV.promoted),pms:PROMOS,
+  log:log.map(o=>({t:o.t,s:o.s,dead:o.dead})),beat:beat,act:act,note:note,rp:replans,ld:!!(LV&&LV.liveDeck),lv:!!(LV&&LV.live),lpr:!!(LV&&LV.promoted),pms:PROMOS,pmm:PROMOMILE,
   wild:wild,wx:wx,py:py,dk:dk.slice(),miss:miss,rep:rep,health:health,rl:RUNLEFT,
   vs:VS,vf:Array.from(VF),vg:VGATE,
   lrank:(function(){const o={};for(let i=0;i<N;i++)o[i]=LV.rank[i];return o;})(),
@@ -2965,7 +2983,7 @@ function back(){if(!stack.length)return;
     LV.liveDeck=s.ld;
     if(s.lv!==undefined)LV.live=s.lv;
     LV.promoted=!!s.lpr;
-    PROMOS=s.pms||0;
+    PROMOS=s.pms||0;PROMOMILE=s.pmm||0;
     if(s.lrank){const r={};for(let i=0;i<N;i++)r[i]=s.lrank[i];LV.rank=r;}
     if(s.llb)LV.LB=s.llb;
     if(s.lpool)LV.pool=s.lpool;
@@ -3236,6 +3254,17 @@ function promoUnknowns(){
   for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i)&&!isLKSlot(i))hid++;
   return hid+Math.max(0,LV.deckLen-di);
 }
+// Has the board passed a milestone whose extra attempt is still unspent? Returns its index,
+// or -1. Board progress rather than deck progress: deck used was the weaker signal of the
+// two (17% median on proofs against 25% on failures) and it moves for reasons the player
+// does not control.
+function promoMileDue(){
+  if(!N)return -1;
+  const done=cl.size/N;
+  for(let i=0;i<PLANB.promoMiles.length;i++)
+    if(done>=PLANB.promoMiles[i]&&!(PROMOMILE&(1<<i)))return i;
+  return -1;
+}
 // Is this round worth an attempt? Every clause is a reason a proof CANNOT land, so this is
 // a cheap filter in front of an expensive search rather than a tuning knob.
 function promoOK(){
@@ -3249,7 +3278,10 @@ function promoOK(){
   // wildAt is what dDraw mints from, and countWilds catches one a streak reward granted.
   if(LV.wildAt&&LV.wildAt.length)return false;
   if(countWilds(dk))return false;
-  if(PROMOS>=PLANB.promoTries)return false;
+  // The baseline three, PLUS one per unspent milestone. The COST gate below still applies to
+  // a milestone attempt: crossing 60% does not make an unaffordable proof affordable, and
+  // spending the budget to discover that would be paying for a known answer.
+  if(PROMOS>=PLANB.promoTries&&promoMileDue()<0)return false;
   const u=promoUnknowns();
   return u>0&&u<=PLANB.promoMax;
 }
@@ -3261,12 +3293,16 @@ function livePromote(){
   PROMOS++;PLANC.attempt++;
   const mk=maskOf(), w0=HITW;
   // Held by reference so the outcome can be written onto the same entry below.
+  const mile=promoMileDue();
+  if(mile>=0)PROMOMILE|=(1<<mile);
   const T={u:promoUnknowns(),
            cl:N?(cl.size/N):0,
            dr:LV.deckLen?(di/LV.deckLen):0,
+           // which trigger produced this attempt: -1 baseline, else the milestone index
+           m:mile,
            ok:false};
   PLANC.tries.push(T);
-  if(INSPON)ins({t:'promo',stage:'try',unknown:T.u,cleared:T.cl,drawn:T.dr,
+  if(INSPON)ins({t:'promo',stage:'try',unknown:T.u,cleared:T.cl,drawn:T.dr,mile:mile,
     tries:PROMOS,tv:LV.tv,win:!!LV.tgt.win});
   const rg=promoRng((di*8191)^(cl.size*131071)^(LV.deckLen*31)^(PROMOS*7));
   for(let a=0;a<PLANB.promoDeals&&(HITW-w0)<PLANB.deepWork;a++){
@@ -5118,7 +5154,7 @@ function reset(){if(!LV)return;
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];LKDONE=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
-  CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;PROMOS=0;
+  CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;PROMOS=0;PROMOMILE=0;
   if(LV)LV.promoted=false;
   PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0,tries:[]};
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
