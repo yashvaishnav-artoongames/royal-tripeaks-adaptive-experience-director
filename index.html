@@ -944,8 +944,10 @@ const OBS={
         provable:true,  taught:false,
         why:'deterministic once both halves are revealed; needs a pair-collect move'},
   wild:{name:'Wild',         matched:true,  selfClear:0, paysDeck:false, bends:'any',
-        provable:true,  taught:false,
-        why:'rankless and legal against any non-wild waste - no new state at all'},
+        provable:true,  taught:true,
+        why:'rankless and legal against any non-wild waste - no new state at all. Stage 1: '+
+            'canMatch already answered it, and both provers now write WILD_RANK to the waste '+
+            'after playing one instead of an undefined rank'},
   dbl: {name:'Double Value', matched:true,  selfClear:0, paysDeck:false, bends:'two',
         provable:true,  taught:false,
         why:'needs one extra bit in the memo key for a two-valued waste'},
@@ -1014,6 +1016,16 @@ function canMatch(i,w,rank,w2){
   }
   return false;
 }
+// What a play leaves on the waste. A wild slot carries NO rank, so writing rank[i] here puts
+// undefined into the memo key - and undefined poisons the packing silently rather than
+// throwing, so every state computed after it would be keyed on NaN and collide with nothing.
+// WILD_RANK is 14 and WASTE_RADIX is 15, so it fits the field it has to live in.
+const wasteAfterPlay=(i,rank)=>isWildSlot(i)?WILD_RANK:rank[i];
+// The same question for a drawn card. A wild in the DECK is ['WILD','',false,false,true] -
+// its rank slot is an EMPTY STRING, not a rank and not WILD_RANK - so reading c[1] raw put ''
+// into the key, where it coerces to 0 and quietly aliases with a real value. Deck wilds reach
+// the prover through streak rewards on a verified level, so this was live, not theoretical.
+const wasteAfterDraw=c=>isWildCard(c)?WILD_RANK:c[1];
 // The player's view: live ranks, and the head's own second value when it is a double.
 // An up/down card needs no branch here - udTick writes its live rank into LV.rank, so the
 // ordinary path already reads what the card is worth right now.
@@ -1851,12 +1863,12 @@ function exh(rank,deck,seed,win,tv,needPay){
         const nm=(mt+1)%PIPS,ad=nm===0?1:0;let dm=99,pm=99;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          const r=f(nlo,nhi,rank[i],dj,nm);
+          const r=f(nlo,nhi,wasteAfterPlay(i,rank),dj,nm);
           if(!r)return null;
           dm=Math.min(dm,r.d);pm=Math.min(pm,r.p+ad);}
         res={d:dm,p:pm};
       }else if(dj<deck.length){
-        const r=f(mlo,mhi,deck[dj][1],dj+1,0);if(!r)return null;
+        const r=f(mlo,mhi,wasteAfterDraw(deck[dj]),dj+1,0);if(!r)return null;
         res={d:r.d+(mt===PIPS-1?1:0),p:r.p};
       }else{
         const c=popc(mlo)+popc(mhi);
@@ -1894,8 +1906,8 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank){
       if(lg.length){ok=true;
         for(const i of lg){
           const nlo=i<26?(mlo|(1<<i)):mlo, nhi=i<26?mhi:(mhi|(1<<(i-26)));
-          if(!f(nlo,nhi,rank[i],dj)){ok=false;break;}}}
-      else if(dj<deck.length)ok=f(mlo,mhi,deck[dj][1],dj+1);
+          if(!f(nlo,nhi,wasteAfterPlay(i,rank),dj)){ok=false;break;}}}
+      else if(dj<deck.length)ok=f(mlo,mhi,wasteAfterDraw(deck[dj]),dj+1);
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
   return f(m0lo,m0hi,w0,d0);

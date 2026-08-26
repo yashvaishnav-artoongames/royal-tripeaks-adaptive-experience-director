@@ -38,25 +38,30 @@ S.OUT2=[];
 vm.runInContext(`
 OUT2=[];
 for(let li=0;li<LEVELS.length;li++){
-  const row={name:LEVELS[li].short,obs:null,ver:0,live:0,fail:0,err:null};
+  const row={name:LEVELS[li].short,obs:null,ver:0,live:0,fail:0,err:null,why:null};
   useLevel(li);
   row.obs=obsPresent().join('+')||'none';
   for(let ti=0;ti<OUT.length;ti++){
     let lv=null;
     try{ lv=buildFixed(li,ti,seedFor(LEVELS[li].short,ti)); }catch(e){ row.fail++; if(!row.err)row.err=String(e&&e.message||e); continue; }
     if(!lv){row.fail++;continue;}
-    if(lv.deck && lv.deck.length) row.ver++; else row.live++;
+    if(lv.deck && lv.deck.length) row.ver++;
+    else {row.live++;
+      // WHY it fell through to live. FAIL is the builder own ledger of refused stages,
+      // so this distinguishes "the prover could not prove it" from "the gate refused to try".
+      if(!row.why)row.why=Object.keys(FAIL).sort(function(a,b){return FAIL[b]-FAIL[a];})
+        .slice(0,3).map(function(k){return k+" "+FAIL[k];}).join(", ")||"gate refused, prover never ran";}
   }
   OUT2.push(row);
 }`,S);
 
 console.log('');
-console.log('  level   obstacles          verified   live   failed');
+console.log('  level   obstacles          verified   live   failed   why live');
 console.log('  ' + '-'.repeat(56));
 let anyVer=0;
 for(const r of S.OUT2){
   console.log('  '+r.name.padEnd(8)+r.obs.padEnd(19)+
-    String(r.ver).padStart(8)+String(r.live).padStart(7)+String(r.fail).padStart(9)+(r.err?('   '+r.err):''));
+    String(r.ver).padStart(8)+String(r.live).padStart(7)+String(r.fail).padStart(9)+(r.err?('   '+r.err):(r.why?('   '+r.why):'')));
   anyVer+=r.ver;
 }
 console.log('');

@@ -194,9 +194,11 @@ reveal time is not recoverable from the state. The live rank must be carried per
 13^k. At k=2 that is ×169 against a 250k cap; at k=8 (L1499's shape) it is ×8.2e8. **This is
 a property of the obstacle, not of the implementation.** Up/down stays live.
 
-### 3.4 What each stage unlocks — VERIFIED against the level table
+### 3.4 What each stage unlocks — PREDICTED, and the first one was wrong
 
-| after stage | verified levels |
+The original prediction, from the level table alone:
+
+| after stage | predicted verified levels |
 |---|---|
 | today | none |
 | 1 · wild | L21 |
@@ -204,7 +206,33 @@ a property of the obstacle, not of the implementation.** Up/down stays live.
 | 3 · lock & key | L21, L111, L7 |
 | 4 · plus | L12, L21, L111, L7 |
 
-L41 stays live throughout, by design.
+**Stage 1 shipped and L21 did not become verified.** Measured with
+`docs/measurements/director-ownership.js`:
+
+```
+level   obstacles     verified   live   why live
+L21     wild                 0      5   verify 41740, supply 260
+L6      none                 5      0
+```
+
+The gate opened exactly as intended — `why live` says `verify`, meaning the prover **ran** and
+rejected 41,740 candidate deals, where the untaught levels say `gate refused, prover never
+ran`. So Stage 1 is mechanically correct and still buys no coverage.
+
+The likely reason is the thing that makes a wild a wild: it is legal against **anything**, so
+every position carrying one branches far wider, and `exh()` demands that *every* legal line
+land on the exact target. Widening the branching multiplies the ways a line can miss. Teaching
+the prover the rule was necessary; it was not sufficient, and the difference between those two
+is the lesson of this stage.
+
+**Open, and answerable with one measurement:** `exh()` returns null both when a line misses
+the target and when it hits the 250k state cap and sets `bad`. Those are different diagnoses —
+one is a budget problem and the other is structural — and the failure ledger cannot tell them
+apart. Counting them separately is the next thing to do, before deciding whether L21 needs a
+bigger budget or a different guarantee. **Do not raise the cap before knowing which it is.**
+
+Predictions for stages 2–4 stand unmeasured, and this one is a reminder that they are
+predictions. L41 stays live throughout, by design.
 
 ---
 
@@ -227,16 +255,25 @@ Also: surface `readBoard()` in the Level plan panel. A brain you cannot inspect 
 If `equiv.js` shows a single difference, the no-op claim is wrong and nothing else in this
 plan can be trusted — stop there.
 
-### Stage 1 — teach wild · unlocks L21
+### Stage 1 — teach wild · SHIPPED, and it did not unlock L21
 
-Two changes only: `canMatch` already handles the slot, and `exh`/`allHit` must set the waste
-to `WILD_RANK` when the played slot is a wild — today they would write `rank[i]`, which is
-`undefined`, and `(mlo*WR + undefined)` is `NaN`. That would poison the memo silently.
+Two changes, both landed. `canMatch` already handled the slot. `exh`/`allHit` now write
+`WILD_RANK` to the waste after playing a wild, via `wasteAfterPlay()` — they previously wrote
+`rank[i]`, which for a rankless wild is `undefined`, and `(mlo*WR + undefined)` is `NaN`, which
+poisons the memo key silently instead of throwing.
 
-**Watch for:** a wild is legal against everything, so branching widens sharply. Expect `fk`
-(fork count) up and the 250k cap closer.
+**A second wild defect turned up while doing it.** A wild in the *deck* is
+`['WILD','',false,false,true]` — its rank slot is an **empty string**, not a rank and not
+`WILD_RANK`. Both provers read `deck[dj][1]` raw, so `''` went into the key, coerced to 0, and
+quietly aliased with a real rank. Deck wilds reach the prover through streak rewards on a
+verified level, so this was live rather than theoretical. `wasteAfterDraw()` fixes it.
 
-**Verify:** L21 across all five outcomes; `exh` must not report `bad`.
+**Result:** see §3.4. The prover now runs on L21 and cannot prove it. `OBS.wild.taught` is
+`true` because the rule is genuinely modelled — the flag tracks whether the prover understands
+the obstacle, not whether any particular level happens to prove.
+
+**Verified no regression:** `prover-equivalence.js` against a stage-0 baseline, 5 captured
+inputs, 35 comparisons, 35 identical, 0 differing. The control level is untouched.
 
 ### Stage 2 — teach double · unlocks L111
 
