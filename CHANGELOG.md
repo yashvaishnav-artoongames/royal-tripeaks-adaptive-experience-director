@@ -5,10 +5,9 @@
 Two things the live director never had: it can now try to **prove** a level it was steering by
 guess, and you can watch it think.
 
-> **Not for `main` yet.** Mid-level promotion is a measured **net regression** on two of the
-> five bot policies (see below). It is kept on the branch deliberately, to be re-measured once
-> more levels are added — 11 live builds is a thin sample to judge it on. The verification gate
-> in `docs/WORKFLOW.md` has not been passed for a merge.
+> Merged to `main` after the full gate, including a `reg.js` sweep across all five bot
+> policies — which `docs/WORKFLOW.md` requires for a change to the directors and which the
+> five fast suites do not cover.
 
 ### Added
 - **Mid-level promotion.** A live build now mints its own unseen region — face-down slots and
@@ -49,6 +48,30 @@ guess, and you can watch it think.
 - **Planning counters** (`PLANC`) and **`docs/measurements/promotion-rate.js`**, which reports
   how often promotion fires and, when it does not, which clause refused it.
 
+- **Three look-ahead milestones, at 60% / 80% / 90% of the board cleared**, on top of the
+  three baseline attempts. The baseline three were never three independent shots: undecided
+  cards fall monotonically, so the cost ceiling opens ONCE and the attempts fire on
+  consecutive actions — on L21 every promotion landed between draw 8 and draw 12. Three looks
+  at nearly the same board.
+
+  | trigger | attempts | proved | rate | median board cleared |
+  |---|---|---|---|---|
+  | baseline (cost gate) | 120 | 35 | 29% | 38% |
+  | milestone 60% | 22 | 15 | **68%** | 63% |
+  | milestone 80% | 7 | 2 | 29% | 81% |
+  | milestone 90% | 5 | 5 | **100%** | 94% |
+
+  Promotions rise from 38 to 57. The mechanism is the one the clustering argument predicted:
+  a later board is smaller, and a smaller board is easier to prove.
+
+  The set was chosen by measuring three configurations rather than picking one. `[0.60, 0.80]`
+  alone loses five promotions — 80% converts at 29%, no better than the cost gate, because at
+  80% cleared the board is still large. With 90% present it falls from seven proofs to five,
+  so the two that 80% lands are levels 90% would have caught anyway, just **sooner**: 81%
+  cleared instead of 94%, roughly three times as much remaining level actually guaranteed. A
+  proof is only worth what it still covers, so 80% is kept for the value it moves earlier and
+  90% as the backstop where it is nearly free.
+
 - **Undone moves are labelled, not deleted.** Undo and replay the same card and the director
   decides again, so the log correctly holds two entries for one card — which reads as a bug
   until it is labelled. `o.mv` is the log length at the moment a record was made, so once the
@@ -57,17 +80,50 @@ guess, and you can watch it think.
   selective by `docs/measurements/inspector-undo.js`: 2 rows tagged, 11 untouched, 2 fresh
   rows added on the replay.
 
-### Measured, and it is a regression
+### Measured
 
-  | policy | 1.6.0 | 1.7.0 | range | intent |
+  Final figures, taken against a frozen copy of the merged commit. `random` at 50 runs per
+  build, the rest at 20.
+
+  **LIVE — in target range**, which is what a live build is promised:
+
+  | policy | 1.6.0 | before milestones | **shipped** | vs 1.6.0 |
   |---|---|---|---|---|
-  | random (50/build) | 550/550 · 550 | 550/550 · 550 | — | — |
-  | greedy | 216/220 · 220 | **217/220** · 220 | **+1** | — |
-  | cautious | 219/220 · 220 | **220/220** · 220 | **+1** | — |
-  | drawhappy | 193/220 · 215 | 189/220 · 212 | **−4** | **−3** |
-  | messy | 193/220 · 215 | ~191/220 · ~212 | **−2** | **−3** |
+  | random (50/build) | 550/550 | 550/550 | **550/550** | — |
+  | greedy | 216/220 | 217/220 | **219/220** | **+3** |
+  | cautious | 219/220 | 220/220 | **220/220** | **+1** |
+  | drawhappy | 193/220 | 188/220 | **190/220** | **−3** |
+  | messy | 193/220 | 191/220 | **193/220** | — |
+  | | | **net −5** | **net +1** | |
 
-  VERIFIED holds 950/950 exact target throughout.
+  The milestone triggers are what turned that around: before them promotion was a net **−5**
+  on the promised metric, and it ships at **+1**.
+
+  **LIVE — intent match**, the weaker measure of simply ending on the right side:
+
+  | policy | 1.6.0 | shipped |
+  |---|---|---|
+  | random · greedy · cautious | perfect | perfect |
+  | drawhappy | 215/220 | **211/220** |
+  | messy | 215/220 | **213/220** |
+
+  **Net −6, and that is a real cost.** It sits entirely in the two policies that draw with a
+  play available — the ones a proof is known not to survive (ISSUE-015). Promotion hands those
+  players a guarantee that then breaks. Shipped with that stated rather than smoothed over.
+
+  **VERIFIED — exact target:**
+
+  | policy | 1.6.0 | shipped |
+  |---|---|---|
+  | random | 950/950 · 100% | 950/950 · 100% |
+  | greedy · cautious | 380/380 · 100% | 380/380 · 100% |
+  | drawhappy | 231/380 · 60.8% | 231/380 · 60.8% |
+  | messy | 248/380 · 65.3% | 247/380 · 65.0% |
+
+  The 60% figures are **pre-existing and unchanged** — measured on 1.6.0 to be sure. A verified
+  build is promised its exact target on the random policy only; a voluntary draw breaks the
+  proof, which is ISSUE-015 and not something this release touches. Promotion cannot affect
+  them at all: it only ever runs on a live build.
 
   The split is clean and it localises the cause: `random`, `greedy` and `cautious` never draw
   voluntarily, so a promotion they receive never breaks — and a promoted level lands on the
