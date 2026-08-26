@@ -69,6 +69,17 @@ measured and **reverted**: it fixed 4 runs and broke 3.
 **ISSUE-004 — Level generation is non-deterministic**
 Severity: MEDIUM · Status: OPEN (by design) · Introduced: 1.0.0
 
+> **Fixed for the build path.** searchPass counted wall clock, so a fast machine bought more
+> attempts than a slow one and buildFixed(li,ti,seed) was not reproducible - one L7 build read
+> 40, 31, 31, 40 in range across runs of identical code. It now counts WORK and GENC: prover
+> states and generator attempts, two caps, either one stops the search. Verified by running
+>  twice - all 30 builds byte-identical, only the millisecond
+> column moving. Coverage held at 19 verified of 30. Cost: about 2x build time, 36s to 69s for
+> the full set.
+>
+> The mid-round half stays open and should: proveFrom, reDirect and verifiedAbsorb run inside
+> a player tap, where the deadline protects frame time rather than nothing.
+
 `searchPass` and `build` carry `Date.now()` deadlines, so whether a marginal
 level verifies depends on machine speed and load. `tools/reg.js` can report a
 different result for the identical build.
