@@ -9,9 +9,22 @@
 html,body{height:100%;overflow:hidden;}
 body{font-family:'Lexend',sans-serif;background:#eef0f5;color:#1a1d23;font-size:14px;padding:12px;}
 
+/* The page and the Live Inspector are peers, centred together. With the inspector closed
+   this is a flex row of one item and lays out exactly as margin:0 auto did; with it open the
+   pair recentres, so the app SLIDES LEFT rather than reflowing. Nothing inside .page moves,
+   which is the point of doing it out here instead of adding a third grid column. */
+.shell{height:100%;display:flex;gap:14px;justify-content:center;align-items:stretch;
+  min-width:0;}
 .page{height:100%;background:#fff;border-radius:20px;padding:18px 22px;
   box-shadow:0 8px 40px rgba(59,91,219,0.08);display:flex;flex-direction:column;gap:12px;
-  width:100%;max-width:1280px;margin:0 auto;}
+  width:100%;max-width:1280px;min-width:0;}
+/* Same surface, same radius, same shadow as the page: a peer, not an overlay. Fixed width,
+   because a log column that resizes with the window is a log column you cannot read twice
+   the same way. */
+.inspdock{height:100%;width:474px;flex:0 0 auto;background:#fff;border-radius:20px;
+  padding:16px 18px;box-shadow:0 8px 40px rgba(59,91,219,0.08);
+  display:none;flex-direction:column;gap:11px;min-width:0;}
+body.inspon .inspdock{display:flex;}
 
 .hdr{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto;}
 .brand{display:flex;align-items:center;gap:11px;}
@@ -389,6 +402,57 @@ td.v{font-weight:500;}
 .ecdial input[type=range]{width:100%;height:5px;accent-color:#3b5bdb;min-width:0;}
 .ecdial span{font-size:13px;font-weight:800;color:#3b5bdb;text-align:right;
   font-feature-settings:"tnum";letter-spacing:-.5px;}
+/* ---- live inspector --------------------------------------------------- */
+table.insp{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+table.insp th{text-align:left;color:#94a3b8;font-weight:600;padding:3px 4px;
+  border-bottom:1px solid #e2e8f0}
+/* Collapsed rows are one line, so middle alignment puts the badge and the summary on the
+   same optical line. An OPEN row is a paragraph and goes back to top alignment. */
+table.insp td{padding:6px 4px;border-bottom:1px solid #f1f5f9;vertical-align:middle;
+  line-height:1.45}
+tr.inspr.open td{vertical-align:top}
+tr.inspr{cursor:pointer}
+tr.inspr:hover td{background:#f8fafc}
+tr.inspr:focus-visible{outline:2px solid #3b5bdb;outline-offset:-2px}
+.inspchev{color:#cbd5e1;font-size:8px;margin-right:5px;vertical-align:1px}
+tr.inspr.open .inspchev{color:#3b5bdb}
+tr.inspr:not(.open) td:last-child{color:#475569}
+td.ins-mv{color:#94a3b8;width:24px;text-align:right;font-variant-numeric:tabular-nums}
+.insp .ins-d,.insp .ins-l,.insp .ins-p,.insp .ins-r,.insp .ins-c,.insp .ins-i,
+.insp .ins-g{display:inline-block;padding:1px 6px;border-radius:9px;font-size:10px;
+  font-weight:700;white-space:nowrap}
+.insp .ins-d{background:#fee2e2;color:#991b1b}      /* wanted a dead draw */
+.insp .ins-l{background:#dcfce7;color:#166534}      /* wanted a playable one */
+.insp .ins-p{background:#ede9fe;color:#5b21b6}      /* planning arithmetic */
+.insp .ins-r{background:#e0f2fe;color:#075985}      /* a reveal batch */
+.insp .ins-c{background:#dcfce7;color:#166534}      /* chained to the waste */
+.insp .ins-i{background:#f1f5f9;color:#475569}      /* bound as a dead end */
+.insp .ins-g{background:#fef3c7;color:#92400e}      /* looking ahead to the ending */
+/* Was nowrap with codes like "inert". The labels are phrases now. */
+.insp .ins-d,.insp .ins-l,.insp .ins-p,.insp .ins-r,.insp .ins-c,.insp .ins-i,.insp .ins-g{
+  white-space:normal;line-height:1.3;text-align:center;}
+table.insp td:nth-child(1){width:26px}
+table.insp td:nth-child(2){width:104px}
+.insp .ins-warn{color:#b45309;font-weight:700}
+.insp-off{font-size:11px;color:#64748b;line-height:1.5;padding:6px 2px}
+/* The footer was borrowing .stkcfg, which is a GRID laid out for the streak panel's label
+   and select pairs - so two plain buttons landed in one cell and sat on top of each other. */
+.inspfoot{display:flex;gap:8px;flex:0 0 auto;padding-top:2px;}
+.inspfoot button{flex:1;min-height:30px;font-size:11.5px;font-weight:600;
+  border:1.5px solid #e8eaed;border-radius:9px;background:#fff;color:#1a1d23;cursor:pointer;}
+.inspfoot button:hover{border-color:#c7cdd8;}
+.inspfoot button:focus-visible{outline:2px solid #3b5bdb;outline-offset:1px;}
+.insplegend{font-size:10.5px;color:#94a3b8;line-height:1.45;flex:0 0 auto;}
+/* The dock supplies the surface, so the panel inside it is structure only. */
+.inspwrap{display:flex;flex-direction:column;gap:10px;min-height:0;flex:1;}
+.insphd{font-size:12.5px;font-weight:800;letter-spacing:-.1px;flex:0 0 auto;}
+.inspdock .stkrow{background:#f7f8fb;border:1px solid #e8eaed;border-radius:10px;
+  padding:9px 11px;margin-bottom:0;flex:0 0 auto;}
+/* One scroller for the log, so the standing state above it never leaves the screen. */
+.inspscroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;}
+.inspscroll::-webkit-scrollbar{width:6px;}
+.inspscroll::-webkit-scrollbar-thumb{background:#dcdfe6;border-radius:3px;}
+table.insp th{position:sticky;top:0;background:#fff;}
 /* ---- streak rewards ---------------------------------------------------- */
 .stkpanel{background:#fff;border:1.5px solid #e8eaed;border-radius:14px;
   padding:12px 14px 13px;flex:0 0 auto;}
@@ -588,6 +652,7 @@ td.v{font-weight:500;}
 </head>
 <body>
 <div class="dropzone">Drop a folder of level JSON files</div>
+<div class="shell">
 <div class="page">
   <div class="hdr">
     <div class="brand">
@@ -609,6 +674,7 @@ td.v{font-weight:500;}
     </span>
     <button class="pri" onclick="build()">Generate level</button>
     <button id="flbtn" onclick="toggleForceLive()">Director: auto</button>
+    <button id="inspbtn" onclick="inspToggle()">Inspector: off</button>
     <button onclick="pickFolder()">Load levels…</button>
     <input type="file" id="filein" accept=".json,application/json" multiple webkitdirectory
            style="display:none" onchange="ingest([].slice.call(this.files))">
@@ -735,16 +801,21 @@ td.v{font-weight:500;}
         <div id="stkpanel" style="display:flex;flex-direction:column;gap:10px;flex:0 0 auto"></div>
         <div id="ecpanel" style="display:flex;flex-direction:column;gap:10px;flex:0 0 auto"></div>
         <div id="insights" style="display:flex;flex-direction:column;gap:10px;flex:0 0 auto"></div>
+        <!-- The inspector no longer renders here. It lives in .inspdock, beside the page. -->
       </div>
     </div>
   </div>
+</div>
+<!-- The Live Inspector, a peer surface rather than a third column inside the page.
+     Empty and display:none until the bar toggle turns it on. -->
+<div class="inspdock" id="inspdock"></div>
 </div>
 
 <script>
 "use strict";
 // Deployed build identity. main is production (docs/WORKFLOW.md), so the live site
 // reports this string back and it must match the top entry of CHANGELOG.md.
-const APP_VERSION='1.6.0';
+const APP_VERSION='1.7.0';
 const RN=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'];
 const SU=['\u2660','\u2665','\u2666','\u2663'];
 const PIPS=5, ALL=[1,2,3,4,5,6,7,8,9,10,11,12,13];
@@ -1155,10 +1226,57 @@ function useLevel(ix){
     (UDN?(' \u00b7 '+UDN+' up/down card'+(UDN===1?'':'s')+', stepping once per move'):'');
 }
 let RSEED=(Date.now()^0x9e3779b9)>>>0;
+// Prover states spent by allHit(), cumulative. Read only as a difference, the way WORK is.
+let HITW=0;
+// Promotion attempts made on THIS round. Snapshotted, because undo must not re-run one.
+let PROMOS=0;
+// ==== PLANNING TELEMETRY (proposal 22) ========================================
+// Every one of these was already being computed and thrown away. Counting them is what
+// tells us whether mid-level promotion is worth having BEFORE tuning it.
+//
+//   attempt    promoOK() passed and a promotion was actually searched for
+//   promoted   the search found a deal and the level stopped being live
+//   intact     the plan still held from the actual state - no work needed
+//   replanned  a re-order of the undrawn tail re-proved it
+//   reshaped   a full re-deal of the unseen region re-proved it
+//   live       nothing re-proved it, so the target is no longer guaranteed
+//
+// NOT snapshotted, on purpose. These record work the director DID, and an undo does not
+// un-spend it. Reset per round with everything else.
+let PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0};
+// ==== MID-LEVEL PROMOTION BUDGET ==============================================
+// EVERY NUMBER HERE IS A FIRST ESTIMATE, NOT A MEASUREMENT. They bound cost inside a
+// single player tap, and nothing has yet been measured to say they are the right size. The
+// work bound is what actually stops the loop - promoDeals is generous on purpose so that
+// cheap states get more attempts than expensive ones.
+const PLANB={
+  deepWork:420000,   // prover states one promotion attempt may spend, across all its deals
+  promoTries:3,      // attempts per round. reDirect runs on EVERY action, so without this
+                     // the gate would re-fire on every tap once it opened
+  promoDeals:32,     // deals per attempt, bounded in practice by deepWork above
+  promoMax:14        // unknowns ceiling. The proof is exponential in what is still
+                     // undecided, so attempting early only burns the cap and fails
+};
 function srand(s){RSEED=(s>>>0)||1;}
 function rnd(){RSEED=(RSEED+0x6D2B79F5)>>>0;let t=RSEED;
   t=Math.imul(t^t>>>15,1|t);t=t+Math.imul(t^t>>>7,61|t)^t;
   return((t^t>>>14)>>>0)/4294967296;}
+// A FAILED PROMOTION MUST BE A TRUE NO-OP.
+//
+// reassignUnseen(rng) consumes randomness, and rnd() is the single global stream the whole
+// level is dealt from. Attempting a promotion on the shared stream would shift every card
+// the player sees afterwards - so a level where promotion FAILED would still play
+// differently from one where it was never tried. That is not an acceptable cost for a
+// speculative proof.
+//
+// Same generator, private seed. Derived from board state and attempt number so it is
+// reproducible, and deliberately not from the clock.
+function promoRng(seed){
+  let s=(seed>>>0)||1;
+  return function(){s=(s+0x6D2B79F5)>>>0;let t=s;
+    t=Math.imul(t^t>>>15,1|t);t=t+Math.imul(t^t>>>7,61|t)^t;
+    return((t^t>>>14)>>>0)/4294967296;};
+}
 let SILENT=false, SYNCB=false;
 function sched(fn){if(SYNCB)fn();else setTimeout(fn,16);}
 let FITTED=false;
@@ -1910,6 +2028,15 @@ function dGoal(){
   return (N-cl.size)-L.free-(LV.tgt.win?0:LV.tv);
 }
 function dRunLen(){
+  const n=dRunLenCore();
+  // goal and C are pure functions of current state, so recomputing them here reports
+  // exactly what the core saw without reaching into it.
+  if(INSPON){const L2=readBoard();
+    ins({t:'plan',goal:dGoal(),
+         C:(LV.deckLen-di+L2.grants)-(LV.tgt.win?LV.tv:0),
+         run:n,wilds:L2.wilds,free:L2.free,left:(N-cl.size)});}
+  return n;}
+function dRunLenCore(){
   const L=readBoard();
   // Pending grants are draws the director is about to be given. Leaving them out made it
   // ration a budget larger than it thought, which is the same error as the goal, inverted.
@@ -1962,15 +2089,21 @@ function dReveal(newly){
   // were about to clear themselves and be paid for it.
   const oL=readBoard();
   const leftNow=(N-cl.size)-oL.free, drawsNow=(LV.deckLen-di)+oL.grants;
+  const INSR0=RUNLEFT;
   if(LV.tgt.win&&leftNow>drawsNow*1.6)RUNLEFT=Math.max(RUNLEFT,newly.length+2);
   if(!LV.tgt.win&&dGoal()<=0)RUNLEFT=0;
+  if(INSPON)ins({t:'reveal',n:newly.length,run0:INSR0,run:RUNLEFT,
+    guard:RUNLEFT>INSR0?'survival':(RUNLEFT<INSR0?'stop':'-'),
+    left:leftNow,draws:drawsNow,waste:wr});
   // chain the revealed cards to each other, not just to the waste. otherwise a run
   // dies the moment a play reveals nothing, which burns draws we cannot spare.
   let w=wr,cont=RUNLEFT;
   for(const n of newly){
     let r;
     if(cont>0){const c=nb(w).filter(x=>LV.pool[x]>0);
-      if(c.length){r=dPick(c);w=r;cont--;}}
+      if(c.length){r=dPick(c);w=r;cont--;
+        if(INSPON)ins({t:'bind',slot:n,mode:'chain',rank:r,left:cont,
+          kids:dChildren(n),cands:c.length});}}
     if(r===undefined){
       // INERT MUST MEAN INERT.
       //
@@ -1995,6 +2128,7 @@ function dReveal(newly){
       // below keep the candidate set from emptying and the ladder still supplies exactly the
       // clears dRunLen asked for.
       let inert=dFree().filter(x=>nb(wr).indexOf(x)<0&&nb(w).indexOf(x)<0);
+      const INSLOOSE=inert.length;   // before the board is consulted
       const ex=[];
       for(let z=0;z<N;z++)if(!cl.has(z)&&expo(z)&&onScreen(z)&&!isWildSlot(z))ex.push(z);
       // Could anything still exposed answer this card, or be answered BY it? cyc is
@@ -2008,7 +2142,13 @@ function dReveal(newly){
         for(const z of ex)if(canMatch(z,x,LV.rank,w2))return false;
         return true;});
       if(tight.length)inert=tight;
-      r=dPick(inert.length?inert:dFree());}
+      r=dPick(inert.length?inert:dFree());
+      // loose vs tight IS the 1.6.0 fix, in one column. loose counts ranks that merely miss
+      // the waste; tight counts ranks nothing exposed can answer. The gap between them is
+      // exactly the clears that used to leak, and it was invisible until now.
+      if(INSPON)ins({t:'bind',slot:n,mode:'inert',rank:r,
+        loose:INSLOOSE,tight:tight.length,ex:ex.length,
+        kids:dChildren(n),fell:tight.length?'':'no dead end available'});}
     if(r===undefined){r=ALL[Math.floor(rnd()*ALL.length)];  // never leave a card blank
       LV.pool[r]=(LV.pool[r]||0)+1;}                          // and never go negative
     dBind(n,r);}
@@ -2067,6 +2207,41 @@ function udTease(){
 // What the last draw was FOR, so the round note can say it out loud. A device the player
 // cannot perceive is not a device.
 let DRAWTAG=null;
+// ==== LIVE INSPECTOR ==========================================================
+// The live director decided everything and showed nothing. The inert-test defect fixed in
+// 1.6.0 sat in dReveal for the whole project because the numbers said 89.5% and there was
+// no way to ask WHY - and the answer, once visible, is a single column (loose vs tight).
+//
+// OFF by default and every call site gated, because a recorder that runs during a harness
+// sweep is a recorder that can change what the harness measures.
+let INSPON=false;
+let INSP=[];
+// Which rows the reader has opened. Keyed by a monotonic id rather than by position,
+// because INSP is a ring buffer - it shifts, and an index would silently come to mean a
+// different decision than the one that was opened.
+let INSPID=0, INSPOPEN={};
+function inspOpen(id){
+  if(INSPOPEN[id])delete INSPOPEN[id]; else INSPOPEN[id]=1;
+  inspRender();}
+function inspAll(open){
+  INSPOPEN={};
+  if(open)for(const o of INSP)INSPOPEN[o.id]=1;
+  inspRender();}
+function ins(o){
+  if(!INSPON)return;
+  o.mv=log?log.length:0;o.di=di;o.id=++INSPID;
+  INSP.push(o);if(INSP.length>300)INSP.shift();}
+function inspToggle(){
+  INSPON=!INSPON;if(!INSPON){INSP=[];INSPOPEN={};}
+  inspRender();render();}
+// A near miss for the reader: this rank sits TWO steps from something exposed, so the
+// player can see the card they wanted. Two, because one step is a match. Reporting only.
+function inspNear(x){
+  for(let z=0;z<N;z++){
+    if(cl.has(z)||!expo(z)||!onScreen(z))continue;
+    const rz=LV.rank[z];if(rz===undefined)continue;
+    const d=Math.abs(rz-x);if(d===2||d===11)return true;}
+  return false;}
 function dDraw(){
   if(LV.wildAt&&LV.wildAt.length&&LV.wildAt.indexOf(di)>=0){
     LV.wildAt.splice(LV.wildAt.indexOf(di),1);
@@ -2077,6 +2252,11 @@ function dDraw(){
   const C=(LV.deckLen-di-1)-(LV.tgt.win?LV.tv:0);
   // goal reached on a losing target: every remaining draw must land dead so the board strands
   const wantDead=exposedNow.length>0&&(goal<=0||(C>=goal&&goal>0));
+  // WHICH clause fired is half the diagnosis: quota means the goal is already met and every
+  // remaining draw must land dead, slack means there are spare draws to burn. Two different
+  // situations that produce one branch.
+  const INSW=exposedNow.length===0?'noexposed':(goal<=0?'quota':((C>=goal&&goal>0)?'slack':'tight'));
+  let INSDEAD=-1;
   // Both branches ask the same question - will this card be answerable? - so both ask it of
   // the brain, against the post-tick board, instead of re-deriving the rule from cyc().
   // That also stops the DEAD branch lying on a wild level: cyc(undefined,x) is false, so a
@@ -2090,6 +2270,7 @@ function dDraw(){
     // was written here and removed again - it never executed, and the reasoning behind it
     // (that wild tiles starve the dead branch) is simply not what happens.
     const dead=dFree().filter(x=>!exposedNow.some(i=>canMatch(i,x,RNEXT,0)));
+    INSDEAD=dead.length;
     // Among cards that are dead either way, prefer the one the player can see they missed.
     const tz=udTease().filter(function(x){return dead.indexOf(x)>=0;});
     if(tz.length){DRAWTAG='tease';r=dPick(tz);}
@@ -2107,6 +2288,12 @@ function dDraw(){
     r=dPick(cands.length?cands:dFree());}
   if(r===undefined)r=dPick(dFree());
   if(r===undefined)return null;
+  if(INSPON)ins({t:'draw',want:wantDead?'dead':'live',why:INSW,goal:goal,C:C,
+    exposed:exposedNow.length,deadN:INSDEAD,free:dFree().length,
+    rank:r,tag:DRAWTAG||'-',near:inspNear(r),
+    // Asked the same way the dead filter asked it, so the record cannot disagree with the
+    // branch that produced it. A disagreement is a real defect and is flagged in the panel.
+    landed:exposedNow.some(function(i){return canMatch(i,r,RNEXT,0);})?'live':'dead'});
   LV.pool[r]--;const L2=dLabel(r);return [L2[0]+L2[1],r,L2[2]];
 }
 
@@ -2292,7 +2479,9 @@ function allHit(m0lo,m0hi,w0,deck,d0,win,tv,rank,w0d){
       else{const c=popc(mlo)+popc(mhi);ok=!win&&N-c===tv;}}
     inner.set(key,ok);return ok;}
   const pz0=plusClose(m0lo,m0hi);
-  return f(pz0[0],pz0[1],w0,startD,d0,gqPush([],pz0[2]));
+  const ok=f(pz0[0],pz0[1],w0,startD,d0,gqPush([],pz0[2]));
+  HITW+=cap;
+  return ok;
 }
 // cl starts as an EMPTY set, not undefined. It is assigned properly in reset(), but the plan
 // panel is rendered by finishBuild() BEFORE reset() runs, and anything that reads the board
@@ -2718,7 +2907,7 @@ function finishBuild(){
 function ic(c,t,b){return '<div class="insight-card"><div class="ic-title">'+
   '<span class="ic-dot" style="background:'+c+'"></span>'+t+'</div><div class="ic-body">'+b+'</div></div>';}
 function snap(){stack.push({c:Array.from(cl),wl:wl,wr:wr,di:di,k:k,
-  log:log.map(o=>({t:o.t,s:o.s,dead:o.dead})),beat:beat,act:act,note:note,rp:replans,ld:!!(LV&&LV.liveDeck),
+  log:log.map(o=>({t:o.t,s:o.s,dead:o.dead})),beat:beat,act:act,note:note,rp:replans,ld:!!(LV&&LV.liveDeck),lv:!!(LV&&LV.live),lpr:!!(LV&&LV.promoted),pms:PROMOS,
   wild:wild,wx:wx,py:py,dk:dk.slice(),miss:miss,rep:rep,health:health,rl:RUNLEFT,
   vs:VS,vf:Array.from(VF),vg:VGATE,
   lrank:(function(){const o={};for(let i=0;i<N;i++)o[i]=LV.rank[i];return o;})(),
@@ -2742,6 +2931,9 @@ function back(){if(!stack.length)return;
   VS=s.vs;VF=new Set(s.vf);VGATE=s.vg;replans=s.rp;
   if(LV){
     LV.liveDeck=s.ld;
+    if(s.lv!==undefined)LV.live=s.lv;
+    LV.promoted=!!s.lpr;
+    PROMOS=s.pms||0;
     if(s.lrank){const r={};for(let i=0;i<N;i++)r[i]=s.lrank[i];LV.rank=r;}
     if(s.llb)LV.LB=s.llb;
     if(s.lpool)LV.pool=s.lpool;
@@ -2826,8 +3018,11 @@ function play(i){snap();const ww=wild;wild=false;
   if(lf===0)n.push('Board clear.');
   if(ww&&!LV.live&&lf>0&&!ecInRescue()){
     n.push(REDIRECT_NOTE[reDirect()]);
-    health=LV.liveDeck?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
+    health=(LV.liveDeck||LV.live)?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
   }
+  // A match takes a card off the board, so the unseen region just got smaller. This is the
+  // moment a promotion becomes possible that was not possible a move ago.
+  else if(lf>0)promoTry(n);
   note=n.join(' ');render();}
 function useWild(){snap();wild=true;wr=WILD_RANK;wx++;wl=['WILD','',false];log.push({t:'w'});
   act='Spend a Wild';beat='Wild';
@@ -2862,6 +3057,10 @@ function draw(){snap();wild=false;
   else if(LV.live){RUNLEFT=dRunLen();
     const nw=[];for(let z=0;z<N;z++)if(!cl.has(z)&&LV.rank[z]===undefined&&expo(z))nw.push(z);
     dReveal(nw);}
+  // A draw advances di, which shrinks the tail a promotion would have to mint. Attempted
+  // AFTER dReveal above, so the card just drawn and anything it uncovered are already
+  // committed and count as seen - a promotion may only ever touch what the player has not.
+  promoTry(null);
   const lg=legals();
   log.push({t:'d',s:d[0],dead:lg.length===0});act='Draw '+d[0];
   // A device the player cannot perceive is not a device, so say which kind of dead draw
@@ -2898,10 +3097,15 @@ function miss1(){if(!legals().length){draw();return;}
     dReveal(nw);}
   log.push({t:'m',s:d[0]});act='Draw anyway \u2014 mistake '+miss;beat='Mistake';
   if(ecInRescue())note='Burned a rescue card. The rescue director keeps the shape it promised.';
-  else if(LV.live)note='Burned a draw. The director rebinds what has not been seen yet.';
+  else if(LV.live){
+    note=promoTry(null)
+      ?'Burned a draw \u2014 and the board is now small enough to prove, so the director dealt '+
+       'the rest of the level instead of steering it.'
+      :'Burned a draw. The director rebinds what has not been seen yet.';
+  }
   else{const r=reDirect();
     note='Burned a draw with a playable card on the board. '+REDIRECT_NOTE[r];}
-  health=LV.liveDeck?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
+  health=(LV.liveDeck||LV.live)?('Steering live \u2014 aiming for '+LV.tv+', no longer proved.'):'Target intact.';
   render();}
 // a Wild plays a card the verifier never modelled, so it steps off the proved tree.
 // same remedy as a mistake: reorder what is left of the deck until the target holds again.
@@ -2938,7 +3142,11 @@ function reassignUnseen(rng){
   // did not, and it is the REPLAN path - so every re-deal quietly burned one card per
   // hidden wild, and the pool.length check below over-demanded by the same count.
   for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i)&&!isLKSlot(i))hid.push(i);
-  const freeDeck=dk.length-di;
+  // On a VERIFIED build dk holds the whole deck and this is the undrawn tail. On a LIVE
+  // build dk holds only what has been drawn - genLive returns deck:[] and dDraw mints on
+  // demand - so dk.length-di is always 0 and there is nothing to re-plan. deckLen is the
+  // count the level was built with, and it is what a promotion has to mint against.
+  const freeDeck=LV.live?Math.max(0,LV.deckLen-di):(dk.length-di);
   if(!hid.length&&!freeDeck)return null;
   const sup={},pairUsed={};
   ALL.forEach(function(r){sup[r]=SUP;});
@@ -2989,8 +3197,91 @@ function reassignUnseen(rng){
     dk2.push(gr?[L2[0]+L2[1],r,L2[2],true]:[L2[0]+L2[1],r,L2[2]]);}
   return {rank:rank2,LB:LB2,deck:dk2};
 }
+// What is still undecided: face-down board slots plus the unminted deck tail. The proof
+// cost grows with this, so it is also the eligibility measure.
+function promoUnknowns(){
+  let hid=0;
+  for(let i=0;i<N;i++)if(!cl.has(i)&&!expo(i)&&!isWildSlot(i)&&!isLKSlot(i))hid++;
+  return hid+Math.max(0,LV.deckLen-di);
+}
+// Is this round worth an attempt? Every clause is a reason a proof CANNOT land, so this is
+// a cheap filter in front of an expensive search rather than a tuning knob.
+function promoOK(){
+  if(!LV||!LV.live)return false;
+  if(ecInRescue())return false;                    // rescue owns the deck while it runs
+  // The prover models four of the five obstacles. On the fifth it would not be a weaker
+  // proof but a proof about a DIFFERENT game (ISSUE-011), so refuse rather than claim one.
+  if(!proverTaught())return false;
+  // A wild makes canMatch answer true for everything, so the branching factor explodes and
+  // no proof is reachable - measured at ~104,000 refusals and zero proofs. Checked twice:
+  // wildAt is what dDraw mints from, and countWilds catches one a streak reward granted.
+  if(LV.wildAt&&LV.wildAt.length)return false;
+  if(countWilds(dk))return false;
+  if(PROMOS>=PLANB.promoTries)return false;
+  const u=promoUnknowns();
+  return u>0&&u<=PLANB.promoMax;
+}
+// Mint the unseen region, try to prove the target from HERE, and keep the deal only if the
+// proof lands. On success the level stops being live: dReveal and dDraw are never called
+// again and reDirect monitors it from now on exactly like any verified build.
+function livePromote(){
+  if(!promoOK())return 'live';
+  PROMOS++;PLANC.attempt++;
+  const mk=maskOf(), w0=HITW;
+  if(INSPON)ins({t:'promo',stage:'try',unknown:promoUnknowns(),
+    tries:PROMOS,tv:LV.tv,win:!!LV.tgt.win});
+  const rg=promoRng((di*8191)^(cl.size*131071)^(LV.deckLen*31)^(PROMOS*7));
+  for(let a=0;a<PLANB.promoDeals&&(HITW-w0)<PLANB.deepWork;a++){
+    const c=reassignUnseen(rg);
+    if(!c)break;
+    if(allHit(mk[0],mk[1],wr,c.deck,di,LV.tgt.win,LV.tv,c.rank)){
+      LV.rank=c.rank;LV.LB=c.LB;dk=c.deck;LV.deck=c.deck.slice();
+      // deckLeft() reads (LV.live?LV.deckLen:dk.length)-di, and the minted tail makes
+      // dk.length equal deckLen, so the count the player is looking at does not jump.
+      LV.live=false;LV.promoted=true;replans++;PLANC.promoted++;
+      if(INSPON)ins({t:'promo',stage:'promoted',unknown:0,deals:a+1,
+        work:HITW-w0,tv:LV.tv,win:!!LV.tgt.win});
+      return 'promoted';}
+  }
+  return 'live';
+}
+// Try a promotion and say so if it landed. One entry point, because the three call sites
+// below all want the same thing and none of them should reach inside a director.
+function promoTry(n){
+  if(!LV||!LV.live||ecInRescue())return false;
+  if(N-cl.size===0)return false;              // board already clear: nothing left to prove
+  if(livePromote()!=='promoted')return false;
+  if(n)n.push(REDIRECT_NOTE.promoted);
+  health='Target intact.';
+  return true;
+}
+// Supply left, recounted from the table rather than carried forward. reassignUnseen mints
+// from its own accounting and never writes LV.pool, which is harmless while the level stays
+// proved - dDraw and dReveal are not running - and a real defect the moment it reverts to
+// live minting against a pool that has not moved since the promotion.
+function poolRebuild(){
+  const p={};ALL.forEach(function(r){p[r]=SUP;});
+  const take=function(r){if(r!==undefined&&p[r]!==undefined)p[r]--;};
+  take(LV.seed);
+  for(let q=0;q<di;q++)if(dk[q]&&!isWildCard(dk[q]))take(dk[q][1]);
+  // Every bound slot, cleared ones included: a card that has left the board still came out
+  // of the physical deck.
+  for(let i=0;i<N;i++)if(!isWildSlot(i)&&!isLKSlot(i))take(LV.rank[i]);
+  for(const r in p)if(p[r]<0)p[r]=0;
+  LV.pool=p;
+}
 function reDirect(){
-  if(LV.live)return 'live';
+  const v=reDirectCore();
+  PLANC[v]=(PLANC[v]||0)+1;
+  if(INSPON)ins({t:'plan-check',result:v,replans:replans,
+    liveDeck:!!(LV&&LV.liveDeck),tv:LV?LV.tv:0});
+  return v;}
+function reDirectCore(){
+  // WAS: if(LV.live)return 'live'. Planning was switched off for exactly the builds that
+  // needed it - 19 of 30 are verified and planned, 11 went live and were never planned at
+  // all. This is the one thing in the predictive-planning proposal that the codebase did
+  // not already do.
+  if(LV.live)return livePromote();
   const mk=maskOf();
   if(allHit(mk[0],mk[1],wr,dk,di,LV.tgt.win,LV.tv,LV.rank))return 'intact';
   const wilds=countWilds(dk);
@@ -3028,6 +3319,47 @@ function reDirect(){
       // from the rank pool and carries no wilds, so without this the re-deal eats one.
       preserveWilds(wilds);
       return 'reshaped';}
+  }
+  // A PROMOTION MUST BE REVERSIBLE.
+  //
+  // liveDeck exists for a VERIFIED level that stepped off its authored deck: reordering that
+  // deck is meaningful because somebody planned it. A PROMOTED level's deck is synthetic -
+  // livePromote minted it a few moves ago - so when its proof breaks, the right fallback is
+  // the mode it was already succeeding in, not a third mode it has never been in.
+  //
+  // MEASURED with the one-way version, 20 runs x 11 builds:
+  //   drawhappy  193/220 -> 188/220 in range,  215/220 -> 206/220 intent
+  //   messy      193/220 -> 191/220 in range,  215/220 -> 211/220 intent
+  // Both measures down on both policies, and those are exactly the two that break proofs
+  // with voluntary draws. Promotion was not the defect; landing in liveDeck afterwards was.
+  //
+  // HAND BACK THE BOARD TOO, NOT JUST THE DECK.
+  //
+  // An earlier version of this kept the bindings promotion had made, on the reasoning that
+  // they were still unseen and had been proof-consistent when made, so discarding them would
+  // buy nothing. MEASURED, that reasoning was wrong. Reverting the deck alone moved intent
+  // match (drawhappy 206->211, messy 211->212) and moved in-target-range by exactly nothing
+  // - 188 and 191 both times. The fallback decides which SIDE the level lands on; it does
+  // not touch the margin.
+  //
+  // The margin is the bindings. Those cards were chosen to satisfy an EXACT-target proof,
+  // not to pace a run, and once the proof is void they are simply someone else's layout -
+  // which the live director cannot re-choose, because dReveal only binds a slot whose rank
+  // is still undefined. So a reverted level was steering live against a board it did not
+  // lay out. Unbind what is still hidden and it gets the whole level back.
+  //
+  // Safe by the same rule that makes promotion safe: only !cl.has(i) && !expo(i) is touched,
+  // which is exactly the set the player has not seen.
+  if(LV.promoted){
+    LV.live=true;LV.promoted=false;
+    dk=dk.slice(0,di);LV.deck=[];
+    for(let i=0;i<N;i++)
+      if(!cl.has(i)&&!expo(i)&&!isWildSlot(i)&&!isLKSlot(i)){
+        LV.rank[i]=undefined;LV.LB[i]=undefined;}
+    poolRebuild();
+    RUNLEFT=dRunLen();
+    PLANC.reverted=(PLANC.reverted||0)+1;
+    return 'reverted';
   }
   LV.liveDeck=true;return 'live';
 }
@@ -3523,6 +3855,12 @@ const REDIRECT_NOTE={
             'and re-proved the target from this position.',
   reshaped:'Off the planned line, so the director re-dealt everything you have not seen '+
            '\u2014 the face-down cards and the rest of the deck \u2014 and re-proved the target.',
+  promoted:'The board is small enough to see to the end now, so the director dealt the rest '+
+           'of the level and proved the target from this position. It is no longer steering '+
+           'live.',
+  reverted:'The proof no longer holds from here, and the deck it was proved against was one '+
+           'the director dealt rather than one the level shipped with \u2014 so it has handed '+
+           'that back and returned to steering live.',
   live:'Off the planned line, and nothing the director can still change proves the target '+
        'from here, so it steers the rest live.'};
 // ==== EXTRA CARD EXPERIENCE DIRECTOR =========================================
@@ -4210,6 +4548,190 @@ function rewardPing(rec){
 }
 function stkSetType(v){STREAK_REWARD.type=v;stkRenderPanel();render();}
 function stkSetAmount(v){STREAK_REWARD.amount=+v;stkRenderPanel();render();}
+function inspCSV(){
+  const keys=['mv','di','t','want','why','goal','C','exposed','deadN','free','rank',
+    'tag','near','landed','n','run0','run','guard','left','draws','waste','slot',
+    'mode','kids','cands','loose','tight','ex','fell','result','replans',
+    'liveDeck','tv','wilds','stage','unknown','tries','deals','work','win'];
+  const rows=[keys.join(',')];
+  for(const o of INSP)rows.push(keys.map(function(k){
+    const v=o[k];return v===undefined?'':String(v).replace(/,/g,';');}).join(','));
+  const BOM=String.fromCharCode(65279);
+  const blob=new Blob([BOM+rows.join(String.fromCharCode(13,10))],
+    {type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='aed-inspector.csv';document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);a.remove();},0);}
+function inspRender(){
+  const el=document.getElementById("inspdock");if(!el)return;
+  // The body class is what actually moves the layout; everything else here is content.
+  // add/remove rather than toggle(name,force): every measurement harness in
+  // docs/measurements stubs classList with add and remove only, so toggle throws there and
+  // a UI-only change would take all five harnesses down with it. Found by the smoke test,
+  // not by reading.
+  if(INSPON)document.body.classList.add("inspon");
+  else document.body.classList.remove("inspon");
+  const b=document.getElementById("inspbtn");
+  if(b){b.textContent="Inspector: "+(INSPON?"on":"off");
+    b.className=INSPON?"pri":"";}
+  if(!LV){el.innerHTML='';return;}
+  // No toggle in here: the control bar owns it, so there is one switch rather than two that
+  // can disagree.
+  let h='<div class="inspwrap"><div class="insphd">Live Inspector</div>';
+  if(!INSPON){
+    h+='<div class="insp-off">Off. Turn it on to record what the director is looking at '+
+      'on every draw, reveal, plan check and promotion attempt. It stays off during '+
+      'harness sweeps so it cannot change what they measure.</div></div>';
+    el.innerHTML=h;return;}
+  // Standing state first: the numbers every decision below was derived from.
+  // ---- standing state, in the reader's words, not the code's --------------
+  const L=readBoard(),goal=dGoal();
+  const C=(LV.deckLen-di+L.grants)-(LV.tgt.win?LV.tv:0);
+  const left=N-cl.size, unk=LV.live?promoUnknowns():0;
+  const plural=function(n,w){return n+" "+w+(n===1?"":"s");};
+  const aim=LV.tgt.win
+    ?("clear the board with "+plural(LV.tv,"draw")+" still unused")
+    :("end with "+plural(LV.tv,"card")+" left on the board");
+  const band=LV.band?(LV.band[0]+"\u2013"+LV.band[1]+" is close enough"):"";
+  h+='<div class="stkrow">'+
+    "<b>Right now</b><span>"+(LV.live
+        ?"Choosing each card\u2019s value at the moment it is revealed."
+        :(LV.liveDeck?"Its plan broke, so it is steering the rest by hand."
+                     :"Following a plan it has already proved."))+"</span>"+
+    "<b>Trying to</b><span>"+aim+(band?(" \u00b7 "+band):"")+"</span>"+
+    "<b>Still needs</b><span>"+plural(goal,"more match")+" \u00b7 "+
+      plural(C,"draw")+" to spare \u00b7 letting "+plural(RUNLEFT,"card")+" chain</span>"+
+    "<b>On the table</b><span>"+plural(left,"card")+" left"+
+      (L.wilds?(" \u00b7 "+plural(L.wilds,"wild")):"")+
+      (L.moving?(" \u00b7 "+L.moving+" up/down"):"")+
+      " \u00b7 top card "+(wr===WILD_RANK?"WILD":RN[wr])+
+      " \u00b7 "+di+" of "+LV.deckLen+" drawn</span>"+
+    "<b>Guarantee</b><span>"+(LV.live
+        ?(plural(unk,"card")+" still undecided \u00b7 "+
+          (promoOK()?"it can try to lock the ending in"
+                    :"not enough is settled to lock the ending in yet"))
+        :"the ending is proved from here")+
+      (PLANC.promoted?(" \u00b7 locked in "+PLANC.promoted+"\u00d7"):"")+
+      (PLANC.reverted?(", handed back "+PLANC.reverted+"\u00d7"):"")+"</span>"+
+    '</div>';
+
+  // Newest first: the decision you are asking about is the one that just happened.
+  const rows=INSP.slice(-26).reverse();
+  if(!rows.length)h+='<div class="insp-off">Nothing recorded yet \u2014 make a move.</div>';
+  else{
+    h+='<div class="insplegend">Newest first. Click any line to see why. \u201cChain\u201d '+
+      'means a card that can be played straight onto the one before it.</div>';
+    h+="<div class=\"inspscroll\"><table class=\"insp\">"+
+      "<tr><th>Move</th><th>What it did</th><th>Why</th></tr>";
+    // Every branch answers the same two questions: what changed, and what made it choose
+    // that. Nothing here names a function, a variable or a mode the player cannot see.
+    const WHY={quota:"it has already cleared enough of the board",
+               slack:"it still has draws it can afford to waste",
+               tight:"it has no draws left to waste",
+               noexposed:"there is nothing face up to match"};
+    for(const o of rows){
+      // Three strings per row: the badge, a one-line summary that stands alone, and the
+      // full explanation that only appears when the row is opened. The summary is written,
+      // not truncated - a sentence cut mid-clause reads worse than no sentence.
+      let what="",read="",brief="";
+      if(o.t==="draw"){
+        const live=(o.landed==="live");
+        what="<span class=\"ins-"+(live?"l":"d")+"\">Dealt a "+(live?"usable":"dead")+
+          " card</span>";
+        brief="Gave "+RN[o.rank]+" \u2014 "+(live?"playable now":"nothing answers it");
+        read="Gave <b>"+RN[o.rank]+"</b> \u2014 "+
+          (live?"it can be played right now":"nothing on the board answers it")+". It wanted "+
+          (o.want==="dead"?"a dead card":"a usable card")+" because "+(WHY[o.why]||o.why)+".";
+        if(o.deadN>=0)read+=" "+o.deadN+" of the "+o.free+" values still available "+
+          "would have been dead too.";
+        if(o.tag!=="-"||o.near)read+=" It sits one step from a card on the board, so the miss "+
+          "is visible \u2014 that is deliberate.";
+        if((o.want==="dead")!==(o.landed==="dead"))
+          read+=" <span class=\"ins-warn\">This is not what it intended.</span>";
+      }else if(o.t==="plan"){
+        what="<span class=\"ins-p\">Set the pace</span>";
+        brief=o.run===0?"Nothing new will be playable"
+             :o.run===1?"One card will be playable"
+             :(o.run+" cards playable in a row");
+        read=plural(o.goal,"card")+" still to match and "+plural(o.C,"draw")+" to spare, so "+
+          (o.run===0?"nothing new will be playable."
+           :o.run===1?"it will make <b>one</b> card playable."
+           :("it will make <b>"+o.run+"</b> cards playable one after another."));
+      }else if(o.t==="reveal"){
+        what="<span class=\"ins-r\">Uncovered "+o.n+"</span>";
+        brief=(o.n===1?"One card":o.n+" cards")+" to set"+
+          (o.guard==="survival"?" \u00b7 run extended to avoid stranding"
+           :o.guard==="stop"?" \u00b7 stopped chaining"
+           :(o.run?" \u00b7 "+o.run+" will be playable":" \u00b7 none playable"));
+        read=(o.n===1?"One new card to give a value to. "
+                     :(o.n+" new cards to give values to. "))+
+          (o.guard==="survival"
+            ?"The board is big against the draws left, so it made the run longer rather than "+
+             "risk stranding a level it promised to clear."
+            :(o.guard==="stop"
+              ?"Enough has been cleared already, so it stopped making cards playable."
+              :(o.n===1
+                ?(o.run===0?"It will not be playable.":"It will be playable.")
+                :o.run===0?"None of them will be playable."
+                :o.run===1?"One of them will be playable."
+                :(o.run+" of them will be playable in sequence."))));
+      }else if(o.t==="bind"){
+        const ch=(o.mode==="chain");
+        what="<span class=\"ins-"+(ch?"c":"i")+"\">"+
+          (ch?"Made it playable":"Made it a dead end")+"</span>";
+        brief="Position "+o.slot+" \u2192 "+RN[o.rank]+
+          (ch?(o.left?" \u00b7 "+o.left+" more to follow":" \u00b7 closes the run")
+             :" \u00b7 deliberately unmatched");
+        read="The card in position "+o.slot+" became <b>"+RN[o.rank]+"</b>"+
+          (o.kids?(", which frees "+plural(o.kids,"card")+" underneath"):"")+". "+
+          (ch?("It follows the card before it"+
+               (o.left===0?", and closes the run."
+                :o.left===1?", and one more will follow."
+                :(", with "+o.left+" more to follow.")))
+             :("Picked from "+plural(o.tight,"value")+" that nothing face up can answer."+
+               (o.fell?" <span class=\"ins-warn\">No dead end was available.</span>":"")));
+      }else if(o.t==="promo"){
+        const ok=(o.stage!=="try");
+        what="<span class=\"ins-g\">"+(ok?"Locked the ending in":"Looked ahead")+"</span>";
+        brief=ok?("The "+(o.win?"win":"loss")+" is proved from here")
+                :(o.unknown+" card"+(o.unknown===1?"":"s")+" still undecided");
+        read=ok
+          ?("It dealt the rest of the level and <b>proved</b> the "+(o.win?"win":"loss")+
+            " from here, so none of what is left is guesswork.")
+          :("Checked whether it can guarantee the ending yet. "+plural(o.unknown,"card")+
+            " still undecided.");
+      }else if(o.t==="plan-check"){
+        const R={intact:"The plan still holds \u2014 nothing needed changing.",
+          replanned:"You stepped off the planned line, so it re-ordered the cards still to be "+
+            "drawn until the target held again.",
+          reshaped:"You stepped off the planned line, so it re-dealt everything you have not "+
+            "seen \u2014 face-down cards and the rest of the deck \u2014 and proved the target again.",
+          reverted:"The guarantee no longer holds. The deck it was proved against was one the "+
+            "director dealt rather than one the level shipped with, so it handed that back and "+
+            "went back to choosing cards as they come.",
+          live:"Nothing it can still change proves the target, so it steers the rest by hand."};
+        what="<span class=\"ins-p\">Re-checked</span>";
+        brief={intact:"The plan still holds",replanned:"Re-ordered the coming cards",
+          reshaped:"Re-dealt everything unseen",reverted:"Handed the dealt cards back",
+          live:"Steering the rest by hand"}[o.result]||o.result;
+        read=R[o.result]||o.result;
+      }
+      const op=!!INSPOPEN[o.id];
+      h+="<tr class=\"inspr"+(op?" open":"")+"\" tabindex=\"0\""+
+        " onclick=\"inspOpen("+o.id+")\""+
+        " onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();"+
+        "inspOpen("+o.id+");}\">"+
+        "<td class=\"ins-mv\">"+o.mv+"</td><td>"+what+"</td>"+
+        "<td><span class=\"inspchev\">"+(op?"\u25be":"\u25b8")+"</span>"+
+        (op?read:brief)+"</td></tr>";}
+    h+="</table></div>";
+    const anyOpen=Object.keys(INSPOPEN).length>0;
+    h+='<div class="inspfoot">'+
+      '<button onclick="inspAll('+(anyOpen?"false":"true")+')">'+
+        (anyOpen?"Collapse all":"Expand all")+'</button>'+
+      '<button onclick="inspCSV()">Download log</button>'+
+      '<button onclick="INSP=[];INSPOPEN={};inspRender()">Clear</button></div>';}
+  el.innerHTML=h+"</div>";}
 function stkRenderPanel(){
   const el=document.getElementById('stkpanel');if(!el)return;
   if(!LV){el.innerHTML='';return;}
@@ -4530,10 +5052,12 @@ function reset(){if(!LV)return;
   // First reset after a build captures; every later one restores.
   if(LV.base.tv===undefined){
     LV.base.tv=LV.tv;LV.base.band=LV.band?LV.band.slice():null;LV.base.deckLen=LV.deckLen;
+    LV.base.live=!!LV.live;
   }else{
     LV.tv=LV.base.tv;
     if(LV.base.band)LV.band=LV.base.band.slice();
     if(LV.base.deckLen!==undefined)LV.deckLen=LV.base.deckLen;
+    if(LV.base.live!==undefined)LV.live=LV.base.live;
   }
   {
     if(LV.base.rank){const r={};for(let i=0;i<N;i++)r[i]=LV.base.rank[i];LV.rank=r;}
@@ -4545,7 +5069,9 @@ function reset(){if(!LV)return;
   ecReset(false);SUPPLY_LOG=[];STREAK_LOG=[];stkReset();PLUSFIRED=[];LKDONE=[];
   STREAK_GRANTED=0;STREAK_REWARDS=0;COINS=0;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
-  CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;
+  CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;PROMOS=0;
+  if(LV)LV.promoted=false;
+  PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0};
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
   LV.liveDeck=false;
   scrollInit();
@@ -4818,6 +5344,7 @@ function render(){
   ecOverlay(won,lost,left);
   ecRenderPanel();
   stkRenderPanel();
+  inspRender();
   document.getElementById('log').innerHTML=log.map(e=>
     e.t==='p'?'<span class="chip">'+e.s+'</span>'
    :e.t==='w'?'<span class="chip wild">WILD</span>'

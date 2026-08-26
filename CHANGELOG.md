@@ -1,5 +1,108 @@
 # Changelog
 
+## 1.7.0 — 2026-08-26
+
+Two things the live director never had: it can now try to **prove** a level it was steering by
+guess, and you can watch it think.
+
+> **Not for `main` yet.** Mid-level promotion is a measured **net regression** on two of the
+> five bot policies (see below). It is kept on the branch deliberately, to be re-measured once
+> more levels are added — 11 live builds is a thin sample to judge it on. The verification gate
+> in `docs/WORKFLOW.md` has not been passed for a merge.
+
+### Added
+- **Mid-level promotion.** A live build now mints its own unseen region — face-down slots and
+  the undrawn deck — and asks `allHit()` whether the target can be *proved* from where the
+  player actually is. If it can, the level stops being live. `exh()` refused these deals at
+  BUILD time, when the whole level was unknown; mid-level most of the board is dealt and the
+  state space is a fraction of that.
+
+  `reassignUnseen()` already did nine tenths of the work — it re-deals exactly the region the
+  player has not seen. The only reason it could not serve a live build was that `dk.length-di`
+  is always 0 there, because `genLive` returns `deck:[]`.
+
+  | live build | attempts | promoted |
+  |---|---|---|
+  | L7 / Comfortable Lose | 12 | **10 of 10 runs** |
+  | L21 / all five outcomes | 111 | 28 |
+  | L41 / all five outcomes | 0 | 0 — refused, up & down is unprovable |
+
+  **L21 was predicted not to convert, and does.** A wild makes `canMatch` answer true for
+  everything, so a level carrying one cannot be proved — but `dDraw` splices each fired
+  position out of `LV.wildAt`, so once the wild is *spent* there is no future wild to model.
+  Every L21 promotion lands at `di` 8–12, never earlier. The wild blocks the proof only until
+  it is played.
+
+- **Live Inspector.** A panel beside the app — its own surface, toggled from the control bar —
+  recording every decision the director makes: what it did, and why. Rows collapse to one line
+  and open on click. Written for a reader who does not know how the director is built:
+  *“Made it a dead end — the card in position 12 became A, which frees 1 card underneath.
+  Picked from 7 values that nothing face up can answer.”*
+
+  OFF by default, every recording site gated, and the acceptance test is that a round plays
+  **identically** with it on and off. The 1.6.0 inert defect survived the whole project because
+  nothing showed it; the panel puts that failure in one column (how many values merely miss the
+  waste, versus how many nothing can answer).
+
+- **Planning counters** (`PLANC`) and **`docs/measurements/promotion-rate.js`**, which reports
+  how often promotion fires and, when it does not, which clause refused it.
+
+### Measured, and it is a regression
+
+  | policy | 1.6.0 | 1.7.0 | range | intent |
+  |---|---|---|---|---|
+  | random (50/build) | 550/550 · 550 | 550/550 · 550 | — | — |
+  | greedy | 216/220 · 220 | **217/220** · 220 | **+1** | — |
+  | cautious | 219/220 · 220 | **220/220** · 220 | **+1** | — |
+  | drawhappy | 193/220 · 215 | 189/220 · 212 | **−4** | **−3** |
+  | messy | 193/220 · 215 | ~191/220 · ~212 | **−2** | **−3** |
+
+  VERIFIED holds 950/950 exact target throughout.
+
+  The split is clean and it localises the cause: `random`, `greedy` and `cautious` never draw
+  voluntarily, so a promotion they receive never breaks — and a promoted level lands on the
+  EXACT target rather than merely inside the band, which is where their gains come from.
+  `drawhappy` and `messy` break proofs constantly, and a broken promotion costs more than no
+  promotion.
+
+  **Two fixes were built for that cost and both are largely refuted:**
+
+  | | drawhappy range | drawhappy intent |
+  |---|---|---|
+  | 1.6.0 baseline | **193/220** | **215/220** |
+  | one-way promotion | 188/220 | 206/220 |
+  | + revert to live minting | 188/220 | 211/220 |
+  | + unbind the hidden board | 189/220 | 212/220 |
+
+  Reversibility bought 5 intent runs and **zero** range runs — the fallback decides which side
+  the level lands on, not the margin. Unbinding bought 1 more of each. Both were reasoned
+  through in advance and both moved a fraction of what was argued.
+
+  A third option is written and NOT applied: refuse promotion once `miss > 0`, on the grounds
+  that ISSUE-015 already records that a proof does not survive a voluntary draw, so handing one
+  to a player who makes them buys a guarantee that will break. Provably a no-op for the three
+  clean policies. Recorded in `docs/specs/predictive_planning_plan.md` §5.
+
+### Fixed
+- **`reDirect()` was unreachable on live builds** — both call sites carry `!LV.live`, so
+  replacing its short circuit was dead code. Promotion has three triggers of its own.
+- **`classList.toggle(name, force)`** would have broken every harness in `docs/measurements`,
+  which stub `classList` with `add` and `remove` only. Caught by a smoke test, not by reading.
+- **`snap()` carried `liveDeck` but not `LV.live`**, while `dk` *was* snapshotted — an undo
+  would have restored the short pre-promotion deck against a level that believed it had a
+  committed one. `reset()` had the mirror defect via `LV.base`.
+- **`reassignUnseen()` never writes `LV.pool`**, which is harmless while a level stays proved
+  and a real defect the moment it reverts to live minting. `poolRebuild()` recounts from the
+  table.
+
+### Verification
+      plustest    13 / 13      colortest  11 / 11      truth  18 / 18
+      streaktest  23 / 26      meter       9 / 9
+      reg.js      VERIFIED 950/950 exact · LIVE 550/550 in target range (random)
+      inspector   identical play with the recorder on and off
+
+  `streaktest` 23/26 and the missing `tools/` directory are both pre-existing; see 1.6.0.
+
 ## 1.6.0 — 2026-08-26
 
 The live director stops leaking clears it never planned. Live target accuracy on the default
