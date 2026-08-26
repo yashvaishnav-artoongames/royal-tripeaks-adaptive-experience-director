@@ -53,7 +53,10 @@
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const ARGPOL=process.argv[2]||'random';
 const RUNS=+(process.argv[3]||10);
-const src=fs.readFileSync(path.join(__dirname,'..','..','index.html'),'utf8');
+// AED_SRC points the harness at a different build, so an A/B needs no edit to the working
+// tree - which is itself a source of error when the thing being measured is the tree.
+const SRC=process.env.AED_SRC||path.join(__dirname,'..','..','index.html');
+const src=fs.readFileSync(SRC,'utf8');
 function ctx(source){
   const m=source.match(/<script>\r?\n"use strict";([\s\S]*?)<\/script>/);   // fix 1
   if(!m)throw new Error('script block not found - CRLF? An early exit is not a pass.');
