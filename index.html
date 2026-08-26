@@ -418,9 +418,14 @@ tr.inspr:focus-visible{outline:2px solid #3b5bdb;outline-offset:-2px}
 tr.inspr.open .inspchev{color:#3b5bdb}
 tr.inspr:not(.open) td:last-child{color:#475569}
 td.ins-mv{color:#94a3b8;width:24px;text-align:right;font-variant-numeric:tabular-nums}
-.insp .ins-d,.insp .ins-l,.insp .ins-p,.insp .ins-r,.insp .ins-c,.insp .ins-i,
-.insp .ins-g{display:inline-block;padding:1px 6px;border-radius:9px;font-size:10px;
-  font-weight:700;white-space:nowrap}
+/* One badge rule, not seven. The colour comes from the kind class alone. */
+.insp .ins-b{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 7px;
+  border-radius:8px;font-size:10.5px;font-weight:700;line-height:1.25;}
+.insp .ins-ico{font-style:normal;font-size:11px;line-height:1;opacity:.85;flex:0 0 auto;}
+/* Card values read as objects, not as words in a sentence. */
+.insp .ins-chip{display:inline-block;min-width:17px;padding:0 5px;border-radius:5px;
+  border:1px solid #dfe3ea;background:#fff;font-weight:700;font-size:10px;text-align:center;
+  font-variant-numeric:tabular-nums;color:#1a1d23;}
 .insp .ins-d{background:#fee2e2;color:#991b1b}      /* wanted a dead draw */
 .insp .ins-l{background:#dcfce7;color:#166534}      /* wanted a playable one */
 .insp .ins-p{background:#ede9fe;color:#5b21b6}      /* planning arithmetic */
@@ -429,10 +434,21 @@ td.ins-mv{color:#94a3b8;width:24px;text-align:right;font-variant-numeric:tabular
 .insp .ins-i{background:#f1f5f9;color:#475569}      /* bound as a dead end */
 .insp .ins-g{background:#fef3c7;color:#92400e}      /* looking ahead to the ending */
 /* Was nowrap with codes like "inert". The labels are phrases now. */
-.insp .ins-d,.insp .ins-l,.insp .ins-p,.insp .ins-r,.insp .ins-c,.insp .ins-i,.insp .ins-g{
-  white-space:normal;line-height:1.3;text-align:center;}
+/* A rail in the kind's colour, so a run of one decision type is one stripe. */
+tr.inspr td:first-child{border-left:3px solid transparent}
+tr.inspr.r-c td:first-child,tr.inspr.r-l td:first-child{border-left-color:#16a34a}
+tr.inspr.r-i td:first-child{border-left-color:#cbd5e1}
+tr.inspr.r-d td:first-child{border-left-color:#dc2626}
+tr.inspr.r-p td:first-child{border-left-color:#7c3aed}
+tr.inspr.r-r td:first-child{border-left-color:#0ea5e9}
+tr.inspr.r-g td:first-child{border-left-color:#d97706}
+/* An undone move stays readable but stops competing with the live ones. */
+tr.inspr.wasundone td{opacity:.55}
+tr.inspr.wasundone td:first-child{border-left-color:#e2e8f0}
+.ins-undone{display:inline-block;padding:0 5px;border-radius:4px;background:#f1f5f9;
+  color:#64748b;font-size:9px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
 table.insp td:nth-child(1){width:26px}
-table.insp td:nth-child(2){width:104px}
+table.insp td:nth-child(2){width:132px}
 .insp .ins-warn{color:#b45309;font-weight:700}
 .insp-off{font-size:11px;color:#64748b;line-height:1.5;padding:6px 2px}
 /* The footer was borrowing .stkcfg, which is a GRID laid out for the streak panel's label
@@ -2216,6 +2232,15 @@ let DRAWTAG=null;
 // sweep is a recorder that can change what the harness measures.
 let INSPON=false;
 let INSP=[];
+// An undone move is still a decision the director made, and replaying the same card logs it
+// again - which is correct, and confusing without a label. Rather than delete the old rows,
+// mark them: o.mv is the log length at the moment the record was made, so once the log has
+// been rewound, anything recorded at or past the new length belongs to a move that no longer
+// happened. The reader sees both, and which one counts.
+function inspUndone(){
+  if(!INSPON)return;
+  const n=log?log.length:0;
+  for(const o of INSP)if(o.mv>=n)o.undone=true;}
 // Which rows the reader has opened. Keyed by a monotonic id rather than by position,
 // because INSP is a ring buffer - it shifts, and an index would silently come to mean a
 // different decision than the one that was opened.
@@ -2929,6 +2954,7 @@ function back(){if(!stack.length)return;
   cl=new Set(s.c);wl=s.wl;wr=s.wr;di=s.di;k=s.k;log=s.log;beat=s.beat;act=s.act;note=s.note;
   wild=s.wild;wx=s.wx;py=s.py;dk=s.dk;miss=s.miss;rep=s.rep;health=s.health;RUNLEFT=s.rl;
   VS=s.vs;VF=new Set(s.vf);VGATE=s.vg;replans=s.rp;
+  inspUndone();
   if(LV){
     LV.liveDeck=s.ld;
     if(s.lv!==undefined)LV.live=s.lv;
@@ -4633,12 +4659,17 @@ function inspRender(){
       // Three strings per row: the badge, a one-line summary that stands alone, and the
       // full explanation that only appears when the row is opened. The summary is written,
       // not truncated - a sentence cut mid-clause reads worse than no sentence.
-      let what="",read="",brief="";
+      let what="",read="",brief="",K="";
+      // B() returns the badge AND records its kind, which the row uses for its colour rail.
+      // One call site per decision means the two can never drift apart.
+      const B=function(k,ico,txt){K=k;
+        return "<span class=\"ins-b ins-"+k+"\"><i class=\"ins-ico\">"+ico+"</i>"+txt+
+          "</span>";};
+      const chip=function(t){return "<span class=\"ins-chip\">"+t+"</span>";};
       if(o.t==="draw"){
         const live=(o.landed==="live");
-        what="<span class=\"ins-"+(live?"l":"d")+"\">Dealt a "+(live?"usable":"dead")+
-          " card</span>";
-        brief="Gave "+RN[o.rank]+" \u2014 "+(live?"playable now":"nothing answers it");
+        what=B(live?"l":"d",live?"\u2713":"\u2715","Dealt a "+(live?"usable":"dead")+" card");
+        brief="Gave "+chip(RN[o.rank])+" "+(live?"playable now":"nothing answers it");
         read="Gave <b>"+RN[o.rank]+"</b> \u2014 "+
           (live?"it can be played right now":"nothing on the board answers it")+". It wanted "+
           (o.want==="dead"?"a dead card":"a usable card")+" because "+(WHY[o.why]||o.why)+".";
@@ -4649,7 +4680,7 @@ function inspRender(){
         if((o.want==="dead")!==(o.landed==="dead"))
           read+=" <span class=\"ins-warn\">This is not what it intended.</span>";
       }else if(o.t==="plan"){
-        what="<span class=\"ins-p\">Set the pace</span>";
+        what=B("p","\u2261","Set the pace");
         brief=o.run===0?"Nothing new will be playable"
              :o.run===1?"One card will be playable"
              :(o.run+" cards playable in a row");
@@ -4658,7 +4689,7 @@ function inspRender(){
            :o.run===1?"it will make <b>one</b> card playable."
            :("it will make <b>"+o.run+"</b> cards playable one after another."));
       }else if(o.t==="reveal"){
-        what="<span class=\"ins-r\">Uncovered "+o.n+"</span>";
+        what=B("r","\u25c9","Uncovered "+o.n);
         brief=(o.n===1?"One card":o.n+" cards")+" to set"+
           (o.guard==="survival"?" \u00b7 run extended to avoid stranding"
            :o.guard==="stop"?" \u00b7 stopped chaining"
@@ -4677,9 +4708,9 @@ function inspRender(){
                 :(o.run+" of them will be playable in sequence."))));
       }else if(o.t==="bind"){
         const ch=(o.mode==="chain");
-        what="<span class=\"ins-"+(ch?"c":"i")+"\">"+
-          (ch?"Made it playable":"Made it a dead end")+"</span>";
-        brief="Position "+o.slot+" \u2192 "+RN[o.rank]+
+        what=B(ch?"c":"i",ch?"\u2713":"\u2715",
+          ch?"Made it playable":"Made it a dead end");
+        brief="Position "+chip(o.slot)+" \u2192 "+chip(RN[o.rank])+
           (ch?(o.left?" \u00b7 "+o.left+" more to follow":" \u00b7 closes the run")
              :" \u00b7 deliberately unmatched");
         read="The card in position "+o.slot+" became <b>"+RN[o.rank]+"</b>"+
@@ -4692,7 +4723,7 @@ function inspRender(){
                (o.fell?" <span class=\"ins-warn\">No dead end was available.</span>":"")));
       }else if(o.t==="promo"){
         const ok=(o.stage!=="try");
-        what="<span class=\"ins-g\">"+(ok?"Locked the ending in":"Looked ahead")+"</span>";
+        what=B("g",ok?"\u2726":"\u25ce",ok?"Locked the ending in":"Looked ahead");
         brief=ok?("The "+(o.win?"win":"loss")+" is proved from here")
                 :(o.unknown+" card"+(o.unknown===1?"":"s")+" still undecided");
         read=ok
@@ -4710,14 +4741,16 @@ function inspRender(){
             "director dealt rather than one the level shipped with, so it handed that back and "+
             "went back to choosing cards as they come.",
           live:"Nothing it can still change proves the target, so it steers the rest by hand."};
-        what="<span class=\"ins-p\">Re-checked</span>";
+        what=B("p","\u21bb","Re-checked");
         brief={intact:"The plan still holds",replanned:"Re-ordered the coming cards",
           reshaped:"Re-dealt everything unseen",reverted:"Handed the dealt cards back",
           live:"Steering the rest by hand"}[o.result]||o.result;
         read=R[o.result]||o.result;
       }
       const op=!!INSPOPEN[o.id];
-      h+="<tr class=\"inspr"+(op?" open":"")+"\" tabindex=\"0\""+
+      if(o.undone)brief+=" <span class=\"ins-undone\">undone</span>";
+      h+="<tr class=\"inspr r-"+K+(op?" open":"")+(o.undone?" wasundone":"")+
+        "\" tabindex=\"0\""+
         " onclick=\"inspOpen("+o.id+")\""+
         " onkeydown=\"if(event.key==='Enter'||event.key===' '){event.preventDefault();"+
         "inspOpen("+o.id+");}\">"+

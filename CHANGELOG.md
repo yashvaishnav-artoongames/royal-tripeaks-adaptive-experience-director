@@ -35,7 +35,9 @@ guess, and you can watch it think.
 
 - **Live Inspector.** A panel beside the app — its own surface, toggled from the control bar —
   recording every decision the director makes: what it did, and why. Rows collapse to one line
-  and open on click. Written for a reader who does not know how the director is built:
+  and open on click, each with an icon badge, card values as chips, and a colour rail down the
+  left so a run of one decision type reads as one stripe. Written for a reader who does not
+  know how the director is built:
   *“Made it a dead end — the card in position 12 became A, which frees 1 card underneath.
   Picked from 7 values that nothing face up can answer.”*
 
@@ -46,6 +48,14 @@ guess, and you can watch it think.
 
 - **Planning counters** (`PLANC`) and **`docs/measurements/promotion-rate.js`**, which reports
   how often promotion fires and, when it does not, which clause refused it.
+
+- **Undone moves are labelled, not deleted.** Undo and replay the same card and the director
+  decides again, so the log correctly holds two entries for one card — which reads as a bug
+  until it is labelled. `o.mv` is the log length at the moment a record was made, so once the
+  log is rewound anything recorded at or past the new length belongs to a move that no longer
+  happened. Those rows dim, keep their place in the order, and carry an UNDONE tag. Verified
+  selective by `docs/measurements/inspector-undo.js`: 2 rows tagged, 11 untouched, 2 fresh
+  rows added on the replay.
 
 ### Measured, and it is a regression
 
