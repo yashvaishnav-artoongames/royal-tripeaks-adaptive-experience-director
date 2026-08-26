@@ -18,13 +18,15 @@ Start at **Stage 0**, which is a proven no-op, and do not begin Stage 1 until `e
 reports zero differences. Section 7 of the spec has three questions worth answering before the
 first commit.
 
-## Where things stand at 1.4.0
+## Where things stand at 1.5.0
 
-`main` is at **1.4.0**, tagged `v1.4.0`, **not pushed** — the live site is whatever origin
-last received. Every push to `main` is a live deploy.
+`main` is at **1.5.0**, tagged `v1.5.0`. Check whether it is pushed with `git ls-remote`
+rather than the local `origin/main` ref, which only moves on fetch or push and can be
+arbitrarily stale — that distinction already caused one wrong claim in this file. **Every
+push to `main` is a live deploy.**
 
-Branch `feat/wild-and-double-cards` is one commit ahead of `main`: the live director's
-obstacle ledger (`oLedger`, and `dGoal`/`dRunLen`/`dReveal` reading it).
+1.4.0 was pushed and served live. 1.5.0 adds the live director's obstacle ledger, which was
+held on a branch while the brain-engine plan was written.
 
 1.4.0 added Lock & Key (D-013), Up & Down (D-014), the `BLACKP` colour mix (D-015), a rebuilt
 KPI panel, the `FishCards` and `IncrementalCards` importers, and L7/L41 as built-ins. Five

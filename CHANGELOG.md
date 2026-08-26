@@ -1,5 +1,53 @@
 # Changelog
 
+## 1.5.0 — 2026-08-25
+
+The live director can finally see the obstacles it is planning around, and plus levels stop
+claiming to be proved.
+
+### Changed
+- **`oLedger()` — the live director's obstacle arithmetic.** It plans in two numbers, how many
+  cards still have to leave the board and how many draws it has to spend, and both counted
+  every remaining tile as an ordinary card costing one match and taking one draw. Two obstacles
+  break that: a plus tile clears **itself** and **pays the deck**, and a lock/key pair takes two
+  tiles off for one tap and no draw. `dGoal()`, `dRunLen()` and `dReveal()`'s survival guard
+  all read the ledger now. Measured at level start on a win target with `tv=2`:
+
+  | level | goal was → now | draw budget was → now |
+  |---|---|---|
+  | L12 plus | 21 → **18** | 7 → **16** |
+  | L7 lock & key | 11 → **9** | 7 → 7 |
+  | L21 · L111 · L41 | unchanged | unchanged |
+
+  Only the two levels carrying self-clearing tiles move; the other three are identical, which
+  is the test that this is a correction and not a re-tuning. L12's goal being three too high is
+  the same figure 1.3.0 measured before the revert. **The draw budget more than doubling is
+  new** — the director was rationing draws it was about to be handed, and driving runs harder
+  than the board needed. Some of the "clearing the deck in sequence" pressure was self-inflicted.
+
+- **Plus levels take the live plan.** `PLUSTILES` joins `bends`. `exh()` and `allHit()` decide
+  legality with a bare `cyc(rank[i],w)` rather than `slotTakes()`, so the prover holds a second
+  copy of the matching rule that knows about no obstacle at all — on a plus level that is not a
+  weaker proof but a proof about a **different game** (ISSUE-011). A false proof is the exact
+  failure the project's headline number exists to catch, so coverage goes down and truth goes
+  up. All five obstacle levels are now live-steered.
+
+### Added
+- **`docs/specs/brain_engine_spec.md`** — the validated, staged plan for giving both directors
+  one shared model of the obstacles. Not implemented; this release only carries the document
+  and its evidence.
+- **`docs/measurements/brain-engine-validation.js`** — four validations, re-reading `cyc`,
+  `WILD_RANK`, the memo key and the search caps out of `index.html` on every run so they cannot
+  drift from what they describe. The load-bearing one: the proposed single `canMatch()` rule is
+  an **exact no-op** on every level that reaches the prover today — 196 of 196 (rank, waste)
+  pairs identical. That is what makes the first stage safe to start.
+
+### Verification
+Parse checks, and the per-level arithmetic above derived from the shipped level table.
+**No harness suite was run** — a standing instruction on this branch — so nothing here claims
+a band-adherence or accuracy figure. The obstacle work was confirmed in the browser by the
+user during the session, not by the author.
+
 ## 1.4.0 — 2026-08-25
 
 Two new obstacles, a colour-mix dial, and a rebuilt KPI panel. Also the release that
