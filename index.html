@@ -1259,7 +1259,13 @@ let PROMOS=0;
 //
 // NOT snapshotted, on purpose. These record work the director DID, and an undo does not
 // un-spend it. Reset per round with everything else.
-let PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0};
+let PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0,
+  // One entry per promotion attempt: how much was still undecided (COST), how far through
+  // the level it was (VALUE), and whether it landed. The gate currently measures cost only,
+  // and because unknowns fall monotonically it therefore fires at the LATEST - and least
+  // valuable - moment it can. This is the data that says whether an affordable attempt and
+  // a worthwhile one ever coincide.
+  tries:[]};
 // ==== MID-LEVEL PROMOTION BUDGET ==============================================
 // EVERY NUMBER HERE IS A FIRST ESTIMATE, NOT A MEASUREMENT. They bound cost inside a
 // single player tap, and nothing has yet been measured to say they are the right size. The
@@ -3254,7 +3260,13 @@ function livePromote(){
   if(!promoOK())return 'live';
   PROMOS++;PLANC.attempt++;
   const mk=maskOf(), w0=HITW;
-  if(INSPON)ins({t:'promo',stage:'try',unknown:promoUnknowns(),
+  // Held by reference so the outcome can be written onto the same entry below.
+  const T={u:promoUnknowns(),
+           cl:N?(cl.size/N):0,
+           dr:LV.deckLen?(di/LV.deckLen):0,
+           ok:false};
+  PLANC.tries.push(T);
+  if(INSPON)ins({t:'promo',stage:'try',unknown:T.u,cleared:T.cl,drawn:T.dr,
     tries:PROMOS,tv:LV.tv,win:!!LV.tgt.win});
   const rg=promoRng((di*8191)^(cl.size*131071)^(LV.deckLen*31)^(PROMOS*7));
   for(let a=0;a<PLANB.promoDeals&&(HITW-w0)<PLANB.deepWork;a++){
@@ -3264,9 +3276,9 @@ function livePromote(){
       LV.rank=c.rank;LV.LB=c.LB;dk=c.deck;LV.deck=c.deck.slice();
       // deckLeft() reads (LV.live?LV.deckLen:dk.length)-di, and the minted tail makes
       // dk.length equal deckLen, so the count the player is looking at does not jump.
-      LV.live=false;LV.promoted=true;replans++;PLANC.promoted++;
+      LV.live=false;LV.promoted=true;replans++;PLANC.promoted++;T.ok=true;
       if(INSPON)ins({t:'promo',stage:'promoted',unknown:0,deals:a+1,
-        work:HITW-w0,tv:LV.tv,win:!!LV.tgt.win});
+        cleared:T.cl,drawn:T.dr,work:HITW-w0,tv:LV.tv,win:!!LV.tgt.win});
       return 'promoted';}
   }
   return 'live';
@@ -4727,10 +4739,14 @@ function inspRender(){
         brief=ok?("The "+(o.win?"win":"loss")+" is proved from here")
                 :(o.unknown+" card"+(o.unknown===1?"":"s")+" still undecided");
         read=ok
+        const pct=function(x){return Math.round((x||0)*100)+"%";};
+        read=ok
           ?("It dealt the rest of the level and <b>proved</b> the "+(o.win?"win":"loss")+
-            " from here, so none of what is left is guesswork.")
+            " from here, so none of what is left is guesswork. The board was "+pct(o.cleared)+
+            " cleared and "+pct(o.drawn)+" of the deck was gone.")
           :("Checked whether it can guarantee the ending yet. "+plural(o.unknown,"card")+
-            " still undecided.");
+            " still undecided, board "+pct(o.cleared)+" cleared, "+pct(o.drawn)+
+            " of the deck used.");
       }else if(o.t==="plan-check"){
         const R={intact:"The plan still holds \u2014 nothing needed changing.",
           replanned:"You stepped off the planned line, so it re-ordered the cards still to be "+
@@ -5104,7 +5120,7 @@ function reset(){if(!LV)return;
   cl=new Set();wl=LV.seedCard;wr=LV.seed;di=0;k=0;log=[];stack=[];
   CHAINMAX=0;DENIALS=0;DENKEY=-1;RUNACC=0;PROMOS=0;
   if(LV)LV.promoted=false;
-  PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0};
+  PLANC={attempt:0,promoted:0,reverted:0,intact:0,replanned:0,reshaped:0,live:0,tries:[]};
   wild=false;wx=0;py=0;dk=LV.deck.slice();miss=0;rep=0;replans=0;health='Target intact.';
   LV.liveDeck=false;
   scrollInit();
