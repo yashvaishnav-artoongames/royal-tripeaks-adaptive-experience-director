@@ -1,0 +1,145 @@
+// REGRESSION + BAND ACCURACY
+//
+// Recovered from tools/reg.js at v1.0.1, deleted in 1.0.2. It builds every level against every
+// outcome, plays each one many times, and asks two different questions:
+//
+//   VERIFIED levels  every run must land EXACTLY on the target. A proof is a proof.
+//   LIVE levels      runs should land inside the authored band. Nothing else measures this,
+//                    which is the whole reason it was worth bringing back.
+//
+// Four things were fixed on the way back in, and each of them would have made the numbers
+// wrong rather than merely noisy:
+//
+//   1. CRLF. Every harness in the old tools/ matched /<script>\n"use strict";/ and this clone
+//      checks out CRLF, so the match returned null and the script died at line 3 before running
+//      a single case. An early exit is not a pass.
+//   2. Stale target. It compared against lv.tv captured at BUILD time, but the recovery ladder
+//      moves LV.tv during play - that is the documented behaviour class, not a defect. It now
+//      compares against the target as it stands at the END of the run, and reports separately
+//      how often the target moved.
+//   3. No policies. It only ever played one way. Band accuracy for a player who never wastes a
+//      move is not band accuracy.
+//   4. It scored a verified level as in-band whenever the deck had moved. That hid exactly the
+//      failures it existed to find; with the target read correctly, exact is the right bar.
+//
+// Run: node docs/measurements/reg.js [policy|all] [runsPerBuild]
+const fs=require('fs'),vm=require('vm'),path=require('path');
+const ARGPOL=process.argv[2]||'random';
+const RUNS=+(process.argv[3]||10);
+const src=fs.readFileSync(path.join(__dirname,'..','..','index.html'),'utf8');
+function ctx(source){
+  const m=source.match(/<script>\r?\n"use strict";([\s\S]*?)<\/script>/);   // fix 1
+  if(!m)throw new Error('script block not found - CRLF? An early exit is not a pass.');
+  let js=m[1].replace(/const ls=document\.getElementById\('lsel'\)[\s\S]*$/,'');
+  const ids=[...new Set([...source.matchAll(/id="([a-zA-Z0-9]+)"/g)].map(x=>x[1]))];
+  const store={};
+  const mk=id=>({id:id,innerHTML:'',textContent:'',className:'',style:{},value:'0',
+    dataset:{},get clientWidth(){return 760;},get clientHeight(){return 420;},appendChild(){},
+    setAttribute(){},classList:{toggle(){},add(){},remove(){}},set disabled(v){},
+    get disabled(){return false;},click(){},files:[],querySelector:()=>null,
+    closest:()=>null,hidden:false,scrollIntoView(){},type:'',title:''});
+  ids.forEach(id=>store[id]=mk(id));
+  const fb={set disabled(v){},get disabled(){return false;}};
+  const s={document:{getElementById:id=>store[id]||(store[id]=mk(id)),createElement:()=>mk('x'),
+      querySelectorAll:()=>[fb,fb],addEventListener:()=>{},
+      body:{classList:{add(){},remove(){}},appendChild(){},removeChild(){}}},
+    window:{addEventListener(){}},localStorage:{getItem(){return null;},setItem(){}},
+    console:console,setTimeout:()=>0,clearTimeout:()=>{},requestAnimationFrame:()=>0,
+    Date:Date,Math:Math,JSON:JSON,parseInt:parseInt,parseFloat:parseFloat,isFinite:isFinite,
+    Number:Number,String:String,Array:Array,Object:Object,Set:Set,Map:Map,Error:Error};
+  s.globalThis=s;
+  vm.createContext(s);vm.runInContext(js,s);return s;
+}
+const S=ctx(src);
+S.RUNS=RUNS;S.ARGPOL=ARGPOL;
+vm.runInContext(`
+POLS=(ARGPOL==='all')?BOTPOL.slice():[ARGPOL];
+ROWS=[];BUGS=[];
+// One build per level+outcome, played by every policy. Rebuilding per policy would compare
+// policies on different deals, which is not a comparison.
+for(let li=0;li<LEVELS.length;li++){
+ for(let ti=0;ti<OUT.length;ti++){
+  let lv=null;
+  try{ lv=buildFixed(li,ti,seedFor(LEVELS[li].short,ti)); }
+  catch(e){ BUGS.push(LEVELS[li].short+' build threw: '+e.message); continue; }
+  if(!lv)continue;
+  const live=(lv.usedMode===4), bd=[OUT[ti].lo,OUT[ti].hi], buildTv=lv.tv;
+  for(const pol of POLS){
+    const row={pol:pol,lvl:LEVELS[li].short,out:OUT[ti].n,live:live,band:bd,tv:buildTv,
+               runs:0,side:0,exact:0,inband:0,moved:0,bugs:[]};
+    for(let p=0;p<RUNS;p++){
+      let o=null;
+      try{ o=botPlay(seedFor(LEVELS[li].short,ti)+7919*(p+1),pol); }
+      catch(e){ row.bugs.push('play threw: '+e.message); break; }
+      for(const b of o.bugs)if(row.bugs.indexOf(b)<0)row.bugs.push(b);
+      if(!o.res)continue;
+      row.runs++;
+      const tvEnd=LV.tv;                       // fix 2: the target as it stands NOW
+      if(tvEnd!==buildTv)row.moved++;
+      if(o.res.win===OUT[ti].win){row.side++;
+        if(o.res.v===tvEnd)row.exact++;
+        if(o.res.v>=bd[0]&&o.res.v<=bd[1])row.inband++;}
+    }
+    ROWS.push(row);
+  }
+ }
+}
+// Undo through a rescue must restore the board exactly. Kept from the original.
+UNDO={n:0,bad:0};
+for(let li=0;li<LEVELS.length;li++){
+  let lv=null;
+  try{ lv=buildFixed(li,4,seedFor(LEVELS[li].short,4)); }catch(e){ continue; }
+  if(!lv)continue;
+  srand(99+li);SILENT=true;skipToEnd();SILENT=false;
+  if(N-cl.size===0)continue;
+  SILENT=true;ecStart(5,'coins');SILENT=false;
+  const before={left:N-cl.size,runs:ECRUNS,phase:PHASE};
+  SILENT=true;
+  for(let s2=0;s2<4;s2++){const lg=legals();if(lg.length)play(lg[0]);else if(deckLeft()>0)draw();else break;}
+  for(let s2=0;s2<4;s2++)back();
+  SILENT=false;
+  UNDO.n++;
+  if(N-cl.size!==before.left||ECRUNS!==before.runs||PHASE!==before.phase)UNDO.bad++;
+}`,S);
+
+const rows=S.ROWS, pols=[...new Set(rows.map(r=>r.pol))];
+console.log('');
+console.log('  REGRESSION + BAND ACCURACY   -   '+RUNS+' runs per build');
+console.log('');
+for(const pol of pols){
+  const rs=rows.filter(r=>r.pol===pol);
+  const ver=rs.filter(r=>!r.live), live=rs.filter(r=>r.live);
+  const vRuns=ver.reduce((a,r)=>a+r.runs,0), vEx=ver.reduce((a,r)=>a+r.exact,0);
+  const lRuns=live.reduce((a,r)=>a+r.runs,0), lIn=live.reduce((a,r)=>a+r.inband,0);
+  const lSide=live.reduce((a,r)=>a+r.side,0);
+  const vFail=ver.filter(r=>r.exact<r.runs);
+  console.log('  policy '+pol);
+  console.log('    VERIFIED  exact '+vEx+'/'+vRuns+'  ('+(100*vEx/vRuns).toFixed(1)+'%)   '+
+    (vFail.length?vFail.length+' build(s) missed':'every build held')+
+    (pol==='random'&&vFail.length?'   <- a random-policy miss is a REAL failure':''));
+  console.log('    LIVE      in band '+lIn+'/'+lRuns+'  ('+(100*lIn/lRuns).toFixed(1)+
+    '%)   right side '+lSide+'/'+lRuns+'  ('+(100*lSide/lRuns).toFixed(1)+'%)');
+  const worst=live.slice().sort((a,b)=>(a.inband/Math.max(1,a.runs))-(b.inband/Math.max(1,b.runs))).slice(0,4);
+  console.log('    weakest live builds: '+worst.map(r=>r.lvl+'/'+r.out.replace(/ .*/,'')+' '+
+    r.inband+'/'+r.runs).join('   '));
+  console.log('');
+}
+console.log('  Per-build detail, policy '+pols[0]);
+console.log('');
+console.log('  level  outcome              director   band   side   in band   exact   tv moved');
+console.log('  '+'-'.repeat(84));
+for(const r of rows.filter(x=>x.pol===pols[0])){
+  console.log('  '+r.lvl.padEnd(7)+r.out.padEnd(21)+(r.live?'live':'verified').padEnd(11)+
+    (r.band[0]+'-'+r.band[1]).padEnd(7)+
+    (r.side+'/'+r.runs).padStart(6)+(r.inband+'/'+r.runs).padStart(10)+
+    (r.exact+'/'+r.runs).padStart(8)+String(r.moved).padStart(11)+
+    (r.bugs.length?'   '+r.bugs.join(' | '):''));
+}
+console.log('');
+console.log('  UNDO THROUGH A RESCUE: '+(S.UNDO.n-S.UNDO.bad)+'/'+S.UNDO.n+' restored exactly');
+if(S.BUGS.length)console.log('  BUILD ISSUES: '+S.BUGS.join(' | '));
+console.log('');
+console.log('  A verified build is promised EXACT on the random policy only - the guarantee is');
+console.log('  known not to survive a voluntary draw (ISSUE-015). A live build is promised the');
+console.log('  BAND, and nothing but this measures whether it delivers.');
+console.log('');

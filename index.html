@@ -1491,7 +1491,25 @@ function buildFixed(li,ti,seed){
   return LV;
 }
 // one playthrough. returns the result plus anything that looked wrong.
-function botPlay(pseed){
+// The bot's policies. A harness that only ever plays one way measures one player, and the
+// numbers it produces quietly carry that as an assumption. These are the behaviours a real
+// player has that 'always take a match' does not:
+//
+//   random     pick uniformly among legal plays, never waste a move. THE DEFAULT, and the
+//              only reading a verified proof actually promises for.
+//   greedy     always take the play that uncovers the most
+//   cautious   always take the play that uncovers the least
+//   drawhappy  sometimes draw with a play available - ISSUE-015's exact path, and the one
+//              the verified guarantee is known NOT to survive. Uses miss1(), which is what
+//              the Draw anyway button does, so it is scored as a mistake like a player's.
+//   wildy      sometimes spend a wild. Wilds are unlimited here (canWild has no bank), so a
+//              policy that reached for one every turn would win everything and measure
+//              nothing - kept deliberately rare.
+//   messy      a bit of all three, including undo, so every player action gets exercised.
+const BOTPOL=['random','greedy','cautious','drawhappy','wildy','messy'];
+function botPlay(pseed,policy,rate){
+  const POL=policy||'random';
+  const P=(rate===undefined)?0.15:rate;
   const bugs=[];
   srand(pseed);
   reset();
@@ -1500,14 +1518,23 @@ function botPlay(pseed){
     const lg=legals();
     const leftNow=N-cl.size;
     if(leftNow===0){res={win:true,v:deckLeft()};break;}
+    if((POL==='wildy'||POL==='messy')&&!wild&&leftNow>0&&rnd()<P*0.35){useWild();continue;}
+    if(POL==='messy'&&stack.length&&rnd()<P*0.15){back();continue;}
     // A ready pair is a real move and the bot had no way to make it, so every lock/key level
     // was unplayable to it - it drew until the deck died and reported a loss the proof never
     // claimed. skipToEnd() already takes pairs first for the same reason: two cards for no
     // draw is never worse than a match.
     if(lkReady()){
       lkTap(lkFirst(KEYS));
+    }else if(lg.length&&(POL==='drawhappy'||POL==='messy')&&deckLeft()>0&&rnd()<P){
+      // A play was available and the player drew anyway. The verified guarantee does not
+      // survive this, which is precisely why it needs a policy rather than being left out.
+      miss1();
     }else if(lg.length){
-      const pick=lg[Math.floor(rnd()*lg.length)];
+      let pick;
+      if(POL==='greedy'){let b=-1;for(const q of lg){const u=unl(q);if(u>b){b=u;pick=q;}}}
+      else if(POL==='cautious'){let b=1e9;for(const q of lg){const u=unl(q);if(u<b){b=u;pick=q;}}}
+      else pick=lg[Math.floor(rnd()*lg.length)];
       if(!expo(pick))bugs.push('played a card that was not exposed');
       play(pick);
     }else if(deckLeft()>0){
