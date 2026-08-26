@@ -1,11 +1,23 @@
-// REGRESSION + BAND ACCURACY
+// REGRESSION + TARGET ACCURACY
 //
 // Recovered from tools/reg.js at v1.0.1, deleted in 1.0.2. It builds every level against every
-// outcome, plays each one many times, and asks two different questions:
+// outcome and plays each one many times.
 //
-//   VERIFIED levels  every run must land EXACTLY on the target. A proof is a proof.
-//   LIVE levels      runs should land inside the authored band. Nothing else measures this,
-//                    which is the whole reason it was worth bringing back.
+// Three nested measures, widest first. Each is a subset of the one above it:
+//
+//   INTENT MATCH      did the run end win or lose as intended? Purely the outcome type.
+//   IN TARGET RANGE   intent matched AND the margin fell inside the authored range.
+//   EXACT TARGET      intent matched AND it landed on the precise number.
+//
+// A VERIFIED level is promised Exact Target on every run - a proof is a proof. A LIVE level
+// is promised In Target Range only: it corrects as you play, so the honest commitment is a
+// range rather than a number. Nothing else measures the live side, which is why this was
+// worth bringing back.
+//
+// A miss is reported as EASIER or HARDER than intended rather than above or below the
+// range, because above and below mean opposite things on the two sides. More draws unused
+// on a win and fewer cards stranded on a lose are both the level being easier than it was
+// meant to be. One vocabulary, and it says which way to fix it.
 //
 // Four things were fixed on the way back in, and each of them would have made the numbers
 // wrong rather than merely noisy:
@@ -17,10 +29,25 @@
 //      moves LV.tv during play - that is the documented behaviour class, not a defect. It now
 //      compares against the target as it stands at the END of the run, and reports separately
 //      how often the target moved.
-//   3. No policies. It only ever played one way. Band accuracy for a player who never wastes a
-//      move is not band accuracy.
-//   4. It scored a verified level as in-band whenever the deck had moved. That hid exactly the
-//      failures it existed to find; with the target read correctly, exact is the right bar.
+//   3. No policies. It only ever played one way, and accuracy for a player who never wastes
+//      a move is not accuracy.
+//   4. It scored a verified level as merely in-range whenever the deck had moved. That hid
+//      exactly the failures it existed to find; with the target read correctly, Exact Target
+//      is the right bar.
+//
+// READ THE LIVE NUMBER AS A RANGE, NOT A POINT.
+//
+// Three runs of IDENTICAL code at 50 runs per build gave 497, 480 and 483 of 550 - 90.4%,
+// 87.3%, 87.8%. That spread is the harness, not the director. Level generation is time-boxed,
+// so under different machine load the generator gets through a different number of candidate
+// deals inside its budget, a different deal wins, and all 30 builds differ. equiv.js said as
+// much in its own header - the generator around the provers can never be deterministic.
+//
+// So: quote the live figure as roughly 88 +/- 3, and never claim a 1-3 point improvement from
+// this script alone. For an A/B, build ONCE and replay - a single fixed build is byte-for-byte
+// reproducible, which is what makes a targeted probe trustworthy where this is not.
+//
+// VERIFIED is immune: exact-on-every-run cannot drift, and it has read 950/950 every time.
 //
 // Run: node docs/measurements/reg.js [policy|all] [runsPerBuild]
 const fs=require('fs'),vm=require('vm'),path=require('path');
@@ -66,7 +93,7 @@ for(let li=0;li<LEVELS.length;li++){
   const live=(lv.usedMode===4), bd=[OUT[ti].lo,OUT[ti].hi], buildTv=lv.tv;
   for(const pol of POLS){
     const row={pol:pol,lvl:LEVELS[li].short,out:OUT[ti].n,live:live,band:bd,tv:buildTv,
-               runs:0,side:0,exact:0,inband:0,moved:0,bugs:[]};
+               runs:0,side:0,exact:0,inband:0,easier:0,harder:0,moved:0,bugs:[]};
     for(let p=0;p<RUNS;p++){
       let o=null;
       try{ o=botPlay(seedFor(LEVELS[li].short,ti)+7919*(p+1),pol); }
@@ -78,7 +105,9 @@ for(let li=0;li<LEVELS.length;li++){
       if(tvEnd!==buildTv)row.moved++;
       if(o.res.win===OUT[ti].win){row.side++;
         if(o.res.v===tvEnd)row.exact++;
-        if(o.res.v>=bd[0]&&o.res.v<=bd[1])row.inband++;}
+        if(o.res.v>=bd[0]&&o.res.v<=bd[1])row.inband++;
+        else if(OUT[ti].win?(o.res.v>bd[1]):(o.res.v<bd[0]))row.easier++;
+        else row.harder++;}
     }
     ROWS.push(row);
   }
@@ -104,7 +133,7 @@ for(let li=0;li<LEVELS.length;li++){
 
 const rows=S.ROWS, pols=[...new Set(rows.map(r=>r.pol))];
 console.log('');
-console.log('  REGRESSION + BAND ACCURACY   -   '+RUNS+' runs per build');
+console.log('  REGRESSION + TARGET ACCURACY   -   '+RUNS+' runs per build');
 console.log('');
 for(const pol of pols){
   const rs=rows.filter(r=>r.pol===pol);
@@ -114,32 +143,41 @@ for(const pol of pols){
   const lSide=live.reduce((a,r)=>a+r.side,0);
   const vFail=ver.filter(r=>r.exact<r.runs);
   console.log('  policy '+pol);
-  console.log('    VERIFIED  exact '+vEx+'/'+vRuns+'  ('+(100*vEx/vRuns).toFixed(1)+'%)   '+
+  console.log('    VERIFIED  exact target '+vEx+'/'+vRuns+'  ('+(100*vEx/vRuns).toFixed(1)+'%)   '+
     (vFail.length?vFail.length+' build(s) missed':'every build held')+
     (pol==='random'&&vFail.length?'   <- a random-policy miss is a REAL failure':''));
-  console.log('    LIVE      in band '+lIn+'/'+lRuns+'  ('+(100*lIn/lRuns).toFixed(1)+
-    '%)   right side '+lSide+'/'+lRuns+'  ('+(100*lSide/lRuns).toFixed(1)+'%)');
+  const lEasy=live.reduce((a,r)=>a+r.easier,0), lHard=live.reduce((a,r)=>a+r.harder,0);
+  console.log('    LIVE      in target range '+lIn+'/'+lRuns+'  ('+(100*lIn/lRuns).toFixed(1)+
+    '%)   intent match '+lSide+'/'+lRuns+'  ('+(100*lSide/lRuns).toFixed(1)+'%)');
+  console.log('              of the misses: '+lEasy+' easier than intended, '+lHard+' harder');
   const worst=live.slice().sort((a,b)=>(a.inband/Math.max(1,a.runs))-(b.inband/Math.max(1,b.runs))).slice(0,4);
   console.log('    weakest live builds: '+worst.map(r=>r.lvl+'/'+r.out.replace(/ .*/,'')+' '+
-    r.inband+'/'+r.runs).join('   '));
+    r.inband+'/'+r.runs+(r.easier>r.harder?' (easier)':r.harder>r.easier?' (harder)':'')).join('   '));
   console.log('');
 }
 console.log('  Per-build detail, policy '+pols[0]);
 console.log('');
-console.log('  level  outcome              director   band   side   in band   exact   tv moved');
-console.log('  '+'-'.repeat(84));
+console.log('  level  outcome              director  range   intent   in range   exact  easier harder  moved');
+console.log('  '+'-'.repeat(92));
 for(const r of rows.filter(x=>x.pol===pols[0])){
-  console.log('  '+r.lvl.padEnd(7)+r.out.padEnd(21)+(r.live?'live':'verified').padEnd(11)+
+  console.log('  '+r.lvl.padEnd(7)+r.out.padEnd(21)+(r.live?'live':'verified').padEnd(10)+
     (r.band[0]+'-'+r.band[1]).padEnd(7)+
-    (r.side+'/'+r.runs).padStart(6)+(r.inband+'/'+r.runs).padStart(10)+
-    (r.exact+'/'+r.runs).padStart(8)+String(r.moved).padStart(11)+
+    (r.side+'/'+r.runs).padStart(7)+(r.inband+'/'+r.runs).padStart(11)+
+    (r.exact+'/'+r.runs).padStart(8)+String(r.easier).padStart(7)+String(r.harder).padStart(7)+
+    String(r.moved).padStart(7)+
     (r.bugs.length?'   '+r.bugs.join(' | '):''));
 }
 console.log('');
 console.log('  UNDO THROUGH A RESCUE: '+(S.UNDO.n-S.UNDO.bad)+'/'+S.UNDO.n+' restored exactly');
 if(S.BUGS.length)console.log('  BUILD ISSUES: '+S.BUGS.join(' | '));
 console.log('');
-console.log('  A verified build is promised EXACT on the random policy only - the guarantee is');
-console.log('  known not to survive a voluntary draw (ISSUE-015). A live build is promised the');
-console.log('  BAND, and nothing but this measures whether it delivers.');
+console.log('  intent    = ended win or lose as intended.  in range = intent AND margin inside');
+console.log('              the target range.  exact = intent AND the precise number.');
+console.log('  easier    = the level gave more than intended (more draws unused on a win, fewer');
+console.log('              cards stranded on a lose).  harder = the reverse.');
+console.log('  moved     = runs where the ladder retargeted mid-level. Documented behaviour.');
+console.log('');
+console.log('  A verified build is promised EXACT TARGET, and on the random policy only - the');
+console.log('  guarantee is known not to survive a voluntary draw (ISSUE-015). A live build is');
+console.log('  promised IN TARGET RANGE, and nothing but this measures whether it delivers.');
 console.log('');

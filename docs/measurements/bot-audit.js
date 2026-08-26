@@ -9,7 +9,7 @@
 // So before trusting it with band accuracy, check three things across every POLICY:
 //
 //   COVERAGE    which of the player's actions does it ever take?
-//   SIDE        does it land on the outcome the level is aiming at?
+//   INTENT      does it land on the outcome the level is aiming at?
 //   INVARIANTS  does anything it does break a rule of the game?
 //
 // Run: node docs/measurements/bot-audit.js [runsPerBuild]
@@ -91,7 +91,7 @@ const pols=[...new Set(S.ROWS.map(r=>r.pol))];
 console.log('');
 console.log('  BOT AUDIT  -  '+RUNS+' runs per build, every policy');
 console.log('');
-console.log('  policy       runs   side on target      verified-exact    issues');
+console.log('  policy       runs   intent match        exact target      issues');
 console.log('  '+'-'.repeat(78));
 for(const pol of pols){
   const rs=S.ROWS.filter(r=>r.pol===pol);
@@ -118,7 +118,7 @@ console.log(never.length
     '  Every number this harness produces carries that as a caveat.'
   : '  Every player action is exercised. The bot can do what a player can do.');
 console.log('');
-console.log('  "verified-exact" is the share of runs on a VERIFIED build that landed on the');
+console.log('  "exact target" is the share of runs on a VERIFIED build that landed on the');
 console.log('  target as it stood at the end of the run. Only `random` is promised that: the');
 console.log('  verified guarantee is known not to survive a voluntary draw (ISSUE-015), so a');
 console.log('  drawhappy or messy figure below 100% is documented behaviour, not a new defect.');
